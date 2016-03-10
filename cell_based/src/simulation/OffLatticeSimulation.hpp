@@ -39,6 +39,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AbstractCellBasedSimulation.hpp"
 #include "AbstractForce.hpp"
 #include "AbstractCellPopulationBoundaryCondition.hpp"
+#include "AbstractNumericalMethod.hpp"
+#include "ForwardEulerNumericalMethod.hpp"
 
 #include "ChasteSerialization.hpp"
 #include <boost/serialization/base_object.hpp>
@@ -96,6 +98,9 @@ protected:
     /** List of boundary conditions. */
     std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM,SPACE_DIM> > > mBoundaryConditions;
 
+    /** The numerical method to use in this simulation. Defaults to forward Euler. */
+    boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > mNumericalMethod;
+
     /**
      * Overridden UpdateCellLocationsAndTopology() method.
      *
@@ -143,17 +148,21 @@ protected:
 public:
 
     /**
-     * Constructor.
-     *
-     * @param rCellPopulation Reference to a cell population object
-     * @param deleteCellPopulationInDestructor Whether to delete the cell population on destruction to
-     *     free up memory (defaults to false)
-     * @param initialiseCells Whether to initialise cells (defaults to true, set to false when loading
-     *     from an archive)
-     */
+    * Constructor
+    *
+    * @param rCellPopulation Reference to a cell population object
+    * @param deleteCellPopulationInDestructor Whether to delete the cell population on destruction to
+    *     free up memory (defaults to false)
+    * @param initialiseCells Whether to initialise cells (defaults to true, set to false when loading
+    *     from an archive)
+    * @param numericalMethod Pointer to a numerical method object (defaults to forward Euler).
+    */
     OffLatticeSimulation(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation,
                          bool deleteCellPopulationInDestructor=false,
-                         bool initialiseCells=true);
+                         bool initialiseCells=true,
+                         boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM> > numericalMethod 
+                          = boost::shared_ptr<ForwardEulerNumericalMethod<ELEMENT_DIM, SPACE_DIM> >(new ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>()) );
+
 
     /**
      * Add a force to be used in this simulation (use this to set the mechanics system).
@@ -178,6 +187,11 @@ public:
      * Method to remove all the cell population boundary conditions
      */
     void RemoveAllCellPopulationBoundaryConditions();
+
+    /**
+    * Get the current numerical method. Included for archiving purposes.
+    */
+    const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > GetNumericalMethod() const;
 
     /**
      * Overridden OutputAdditionalSimulationSetup method to output the force and cell
@@ -216,6 +230,9 @@ inline void save_construct_data(
     // Save data required to construct instance
     const AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>* p_cell_population = &(t->rGetCellPopulation());
     ar & p_cell_population;
+
+    const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > p_numerical_method = t->GetNumericalMethod();
+    ar << p_numerical_method;
 }
 
 /**
@@ -229,9 +246,12 @@ inline void load_construct_data(
     AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>* p_cell_population;
     ar >> p_cell_population;
 
-    // Invoke inplace constructor to initialise instance, last two variables set extra
-    // member variables to be deleted as they are loaded from archive and to not initialise sells.
-    ::new(t)OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>(*p_cell_population, true, false);
+    boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > p_numerical_method;
+    ar >> p_numerical_method;
+
+    // Invoke inplace constructor to initialise instance, middle two variables set extra
+    // member variables to be deleted as they are loaded from archive and to not initialise cells.
+    ::new(t)OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>(*p_cell_population, true, false, p_numerical_method);
 }
 }
 } // namespace

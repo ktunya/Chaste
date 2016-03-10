@@ -45,13 +45,18 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "LogFile.hpp"
 #include "Version.hpp"
 #include "ExecutableSupport.hpp"
+#include "ForwardEulerNumericalMethod.hpp"
+
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OffLatticeSimulation(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation,
                                                 bool deleteCellPopulationInDestructor,
-                                                bool initialiseCells)
-    : AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>(rCellPopulation, deleteCellPopulationInDestructor, initialiseCells)
+                                                bool initialiseCells,
+                                                boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > numericalMethod)
+    : AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>(rCellPopulation, deleteCellPopulationInDestructor, initialiseCells),
+      mNumericalMethod(numericalMethod)
 {
+
     if (!dynamic_cast<AbstractOffLatticeCellPopulation<ELEMENT_DIM,SPACE_DIM>*>(&rCellPopulation))
     {
         EXCEPTION("OffLatticeSimulations require a subclass of AbstractOffLatticeCellPopulation.");
@@ -79,7 +84,11 @@ OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OffLatticeSimulation(AbstractCellPo
         // comment out the line below
         NEVER_REACHED;
     }
+
+    mNumericalMethod->SetCellPopulation(dynamic_cast<AbstractOffLatticeCellPopulation<ELEMENT_DIM,SPACE_DIM>*>(&rCellPopulation));
+    mNumericalMethod->SetForceCollection(&mForceCollection);
 }
+
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::AddForce(boost::shared_ptr<AbstractForce<ELEMENT_DIM,SPACE_DIM> > pForce)
@@ -104,6 +113,12 @@ void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::RemoveAllCellPopulationBoundar
 {
     mBoundaryConditions.clear();
 }
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::GetNumericalMethod() const {
+    return mNumericalMethod;
+};
+
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::UpdateCellLocationsAndTopology()
@@ -133,6 +148,7 @@ void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::UpdateCellLocationsAndTopology
     UpdateNodePositions();
     CellBasedEventHandler::EndEvent(CellBasedEventHandler::POSITION);
 }
+
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 c_vector<double, SPACE_DIM> OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::CalculateCellDivisionVector(CellPtr pParentCell)
@@ -338,6 +354,11 @@ void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OutputAdditionalSimulationSetu
         (*iter)->OutputCellPopulationBoundaryConditionInfo(rParamsFile);
     }
     *rParamsFile << "\t</CellPopulationBoundaryConditions>\n";
+
+    // Output numerical method details
+    *rParamsFile << "\n\t<numericalMethod>\n";
+    mNumericalMethod->OutputNumericalMethodInfo(rParamsFile);
+    *rParamsFile << "\t</numericalMethod>\n";
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>

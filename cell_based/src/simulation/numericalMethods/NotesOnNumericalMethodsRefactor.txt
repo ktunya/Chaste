@@ -1,0 +1,12 @@
+- Added an AbstractNumericalMethod class, with child classes:
+  ForwardEulerNumericalMethod
+  RK4NumericalMethod
+  BackwardEulerNumericalMethod
+  AdamsMoulton2NumericalMethod
+  DOP853NumericalMethod
+  
+- OffLatticeSimulation now has an AbstractNumericalMethod as a member.
+  A backward-compatible constructor exists that makes a ForwardEulerNumericalMethod before calling the new constructor. 
+  The AbstractNumericalMethod is archived by the OffLatticeSimulation and is therefore set appropriately on loading.
+
+- 

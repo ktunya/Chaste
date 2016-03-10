@@ -108,13 +108,14 @@ protected:
      */
     virtual void UpdateCellLocationsAndTopology();
 
+
     /**
-     * Moves each node to a new position for this timestep by
-     * calling the CellPopulation::UpdateNodeLocations() method then
-     * applying any boundary conditions.
-     *
-     */
-    virtual void UpdateNodePositions();
+    * Applies any boundary conditions.
+    *
+    * @param old_node_locations Mapping between node indices and old node locations
+    */
+    void ApplyBoundaries(std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > old_node_locations);
+
 
     /**
      * Overridden SetupSolve() method to clear the forces applied to the nodes.

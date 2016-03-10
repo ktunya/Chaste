@@ -46,7 +46,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Version.hpp"
 #include "ExecutableSupport.hpp"
 #include "ForwardEulerNumericalMethod.hpp"
-
+#include "StepSizeException.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OffLatticeSimulation(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation,
@@ -123,30 +123,54 @@ const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > OffLat
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::UpdateCellLocationsAndTopology()
 {
-    // Calculate forces
-    CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
-
-    // Clear all forces
-    for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->mrCellPopulation.rGetMesh().GetNodeIteratorBegin();
-         node_iter != this->mrCellPopulation.rGetMesh().GetNodeIteratorEnd();
-         ++node_iter)
-    {
-        node_iter->ClearAppliedForce();
-    }
-
-    // Now add force contributions from each AbstractForce
-    for (typename std::vector<boost::shared_ptr<AbstractForce<ELEMENT_DIM, SPACE_DIM> > >::iterator iter = mForceCollection.begin();
-         iter != mForceCollection.end();
-         ++iter)
-    {
-        (*iter)->AddForceContribution(this->mrCellPopulation);
-    }
-    CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
-
-    // Update node positions
     CellBasedEventHandler::BeginEvent(CellBasedEventHandler::POSITION);
-    UpdateNodePositions();
+
+    // Store the initial node positions (these may be needed when applying boundary conditions)    
+    std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > old_node_locations;
+
+    for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->mrCellPopulation.rGetMesh().GetNodeIteratorBegin();
+        node_iter != this->mrCellPopulation.rGetMesh().GetNodeIteratorEnd();
+        ++node_iter)
+    {
+        old_node_locations[&(*node_iter)] = (node_iter)->rGetLocation();
+    }
+
+    // Try to update node positions according to the numerical method 
+    try{
+        mNumericalMethod->UpdateAllNodePositions(this->mDt);
+        ApplyBoundaries(old_node_locations);
+
+    }catch(StepSizeException* e){
+        // Detect if a node has travelled too far in a single time step
+        // For now just crash with an error
+        EXCEPTION(e->what());
+    }
+
     CellBasedEventHandler::EndEvent(CellBasedEventHandler::POSITION);
+}
+
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::ApplyBoundaries(std::map<Node<SPACE_DIM>*,c_vector<double, SPACE_DIM> > old_node_locations){
+
+    // Apply any boundary conditions
+    for (typename std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM,SPACE_DIM> > >::iterator bcs_iter = mBoundaryConditions.begin();
+         bcs_iter != mBoundaryConditions.end();
+         ++bcs_iter)
+    {
+        (*bcs_iter)->ImposeBoundaryCondition(old_node_locations);
+    }
+
+    // Verify that each boundary condition is now satisfied
+    for (typename std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM,SPACE_DIM> > >::iterator bcs_iter = mBoundaryConditions.begin();
+         bcs_iter != mBoundaryConditions.end();
+         ++bcs_iter)
+    {
+        if (!((*bcs_iter)->VerifyBoundaryCondition()))
+        {
+            EXCEPTION("The cell population boundary conditions are incompatible.");
+        }
+    }
 }
 
 
@@ -279,43 +303,7 @@ void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::WriteVisualizerSetupFile()
     }
 }
 
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::UpdateNodePositions()
-{
-    /*
-     * Get the previous node positions (these may be needed when applying boundary conditions,
-     * e.g. in the case of immotile cells)
-     */
-    std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > old_node_locations;
-    for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->mrCellPopulation.rGetMesh().GetNodeIteratorBegin();
-         node_iter != this->mrCellPopulation.rGetMesh().GetNodeIteratorEnd();
-         ++node_iter)
-    {
-        old_node_locations[&(*node_iter)] = (node_iter)->rGetLocation();
-    }
 
-    // Update node locations
-    static_cast<AbstractOffLatticeCellPopulation<ELEMENT_DIM,SPACE_DIM>*>(&(this->mrCellPopulation))->UpdateNodeLocations(this->mDt);
-
-    // Apply any boundary conditions
-    for (typename std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM,SPACE_DIM> > >::iterator bcs_iter = mBoundaryConditions.begin();
-         bcs_iter != mBoundaryConditions.end();
-         ++bcs_iter)
-    {
-        (*bcs_iter)->ImposeBoundaryCondition(old_node_locations);
-    }
-
-    // Verify that each boundary condition is now satisfied
-    for (typename std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM,SPACE_DIM> > >::iterator bcs_iter = mBoundaryConditions.begin();
-         bcs_iter != mBoundaryConditions.end();
-         ++bcs_iter)
-    {
-        if (!((*bcs_iter)->VerifyBoundaryCondition()))
-        {
-            EXCEPTION("The cell population boundary conditions are incompatible.");
-        }
-    }
-}
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::SetupSolve()

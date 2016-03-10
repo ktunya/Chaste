@@ -94,7 +94,6 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetCellPopulation(AbstractO
     }
 };
 
-
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetForceCollection(std::vector<boost::shared_ptr<AbstractForce<ELEMENT_DIM, SPACE_DIM> > >* pForces){
     
@@ -106,8 +105,9 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetForceCollection(std::vec
 };
 
 
+
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::ComputeAndSaveForces(){
+std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::ComputeAndSaveForcesInclDamping(){
 	
 	CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
 
@@ -123,7 +123,7 @@ std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SP
         (*iter)->AddForceContribution(*pCellPopulation);
     }
 
-    // Here deal with forces on non-cell nodes (ghosts and particles)
+    // Here we deal with special case forces on non-cell-associated nodes (ghosts and particles)
     if(mGhostNodeForcesEnabled){
         //dynamic_cast<MeshBasedCellPopulationWithGhostNodes<SPACE_DIM>*>(&rCellPopulation)->ApplyGhostForces();
     }
@@ -134,7 +134,7 @@ std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SP
 
     CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
 
-    // Store the forces in a vector
+    // Store applied forces in a vector
 	std::vector<c_vector<double, SPACE_DIM> > forcesAsVector;
 	forcesAsVector.reserve(pCellPopulation->GetNumNodes());
 
@@ -144,11 +144,9 @@ std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SP
         double damping = pCellPopulation->GetDampingConstant(node_iter->GetIndex());
         forcesAsVector.push_back(node_iter->rGetAppliedForce()/damping); 
     }
-
+    
     return forcesAsVector;
 };
-
-
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SaveCurrentLocations(){
@@ -167,10 +165,15 @@ std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SP
 	return currentLocations;
 }
 
-
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>  
+void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SafeNodePositionUpdate( unsigned nodeIndex, 
+                                                        c_vector<double, SPACE_DIM> newPosition){
+    ChastePoint<SPACE_DIM> new_point(newPosition);
+    pCellPopulation->SetNode(nodeIndex, new_point);
+};
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::HandleStepSizeExceptions(c_vector<double,SPACE_DIM>* displacement, double dt, unsigned nodeIndex){
+void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::DetectStepSizeExceptions(unsigned nodeIndex, c_vector<double,SPACE_DIM>* displacement, double dt){
     
     try{
         WARN_ONCE_ONLY("REENABLE STEP SIZE EXCEPTIONS (AbstractNumericalMethod)");
@@ -179,12 +182,14 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::HandleStepSizeExceptions(c_
     }catch(StepSizeException* e){
 
         if(!(e->isTerminal)){
+            // If the step size exception is not serious, just produce a warning.
             WARN_ONCE_ONLY(e->what());
         }else{
             throw e;
         }
     }   
 }
+
 
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -196,7 +201,6 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::OutputNumericalMethodInfo(o
     OutputNumericalMethodParameters(rParamsFile);
     *rParamsFile << "\t\t</" << numerical_method_type << ">\n";
 };
-
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::OutputNumericalMethodParameters(out_stream& rParamsFile){

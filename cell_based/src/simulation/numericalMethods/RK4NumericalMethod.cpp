@@ -52,58 +52,58 @@ void RK4NumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(double dt
 
     if(this->mNonEulerSteppersEnabled){
 
-      std::vector<c_vector<double, SPACE_DIM> > K1 = this->ComputeAndSaveForces();
+      std::vector<c_vector<double, SPACE_DIM> > K1 = this->ComputeAndSaveForcesInclDamping();
 
+      // Update node positions by +(dt K1/2) and compute K2
       int index = 0;
       for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->pCellPopulation->rGetMesh().GetNodeIteratorBegin();
        node_iter != this->pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter, ++index)
       {
         c_vector<double, SPACE_DIM> newLocation = node_iter->rGetLocation() + dt * K1[index]/2.0;
-        ChastePoint<SPACE_DIM> new_point(newLocation);
-        this->pCellPopulation->SetNode(node_iter->GetIndex(), new_point);
+        this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);
       }
-      
-      std::vector< c_vector<double, SPACE_DIM> > K2 = this->ComputeAndSaveForces(); 
+      std::vector< c_vector<double, SPACE_DIM> > K2 = this->ComputeAndSaveForcesInclDamping(); 
 
+
+      // Update node positions by +(dt K2-K1 /2) and compute K3
       index = 0;
       for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->pCellPopulation->rGetMesh().GetNodeIteratorBegin();
            node_iter != this->pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter, ++index)
       {
         c_vector<double, SPACE_DIM> newLocation = node_iter->rGetLocation() + dt * (K2[index] - K1[index])/2.0; //revert, then update
-        ChastePoint<SPACE_DIM> new_point(newLocation);
-        this->pCellPopulation->SetNode(node_iter->GetIndex(), new_point);
-      }
-              
-      std::vector< c_vector<double, SPACE_DIM> > K3 = this->ComputeAndSaveForces(); 
+        this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);
+      }              
+      std::vector< c_vector<double, SPACE_DIM> > K3 = this->ComputeAndSaveForcesInclDamping(); 
 
+
+      // Update node positions by +(dt K3-K2 /2) and compute K4
       index = 0;
       for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->pCellPopulation->rGetMesh().GetNodeIteratorBegin();
            node_iter != this->pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter, ++index)
       {
         double damping = this->pCellPopulation->GetDampingConstant(node_iter->GetIndex());
         c_vector<double, SPACE_DIM> newLocation = node_iter->rGetLocation() + dt * (K3[index] - K2[index]/2.0); //revert, then update
-        ChastePoint<SPACE_DIM> new_point(newLocation);
-        this->pCellPopulation->SetNode(node_iter->GetIndex(), new_point);
+        this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);
       }
-              
-      std::vector< c_vector<double, SPACE_DIM> > K4 = this->ComputeAndSaveForces(); 
+      std::vector< c_vector<double, SPACE_DIM> > K4 = this->ComputeAndSaveForcesInclDamping(); 
 
+
+      // Final position update, according to the RK4 numerical method
       index = 0;
       for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->pCellPopulation->rGetMesh().GetNodeIteratorBegin();
        node_iter != this->pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter, ++index)
       {
-        c_vector<double, SPACE_DIM> effectiveForce = (K1[index] + 2*K2[index] + 2*K3[index] + K4[index] )/6.0;
+        c_vector<double, SPACE_DIM> effectiveForce = (K1[index] + 2*K2[index] + 2*K3[index] + K4[index])/6.0;
+        c_vector<double, SPACE_DIM> oldLocation = node_iter->rGetLocation() - dt * K3[index]; //revert
+        c_vector<double, SPACE_DIM> finalDisplacement =  dt * effectiveForce;
 
-        c_vector<double, SPACE_DIM> oldLocation = node_iter->rGetLocation() - dt * K3[index];
-        c_vector<double, SPACE_DIM> displacement =  dt * effectiveForce;
+        this->DetectStepSizeExceptions(node_iter->GetIndex(), &finalDisplacement, dt);
+        
+        c_vector<double, SPACE_DIM> newLocation = oldLocation + finalDisplacement;     
+        this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);
 
-        this->HandleStepSizeExceptions(&displacement, dt, node_iter->GetIndex());
-        c_vector<double, SPACE_DIM> newLocation = oldLocation + displacement; 
-            
-        ChastePoint<SPACE_DIM> new_point(newLocation);
-        this->pCellPopulation->SetNode(node_iter->GetIndex(), new_point);
-
-        //Ensure the nodes hold accurate forces, incase they're accessed by some other class
+        // Ensure that each nodes holds an accurate applied force value, 
+        // incase it's accessed by some other class
         double damping = this->pCellPopulation->GetDampingConstant(node_iter->GetIndex());
         node_iter->ClearAppliedForce();
         c_vector<double, SPACE_DIM> force = effectiveForce*damping;
@@ -112,13 +112,16 @@ void RK4NumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(double dt
 
     }else{
 
-        this->ComputeAndSaveForces();
-        this->pCellPopulation->UpdateNodeLocations(dt);    
+      // If this type of cell population does not support the new numerical methods, delegate 
+      // updating node positions to the population itself.
+      // Basically only applies to NodeBasedCellPopulationWithBuskeUpdates.     
+      this->ComputeAndSaveForcesInclDamping();
+      this->pCellPopulation->UpdateNodeLocations(dt);    
 
     }
 };
 
-
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>  
 void RK4NumericalMethod<ELEMENT_DIM, SPACE_DIM>::OutputNumericalMethodParameters(out_stream& rParamsFile){
   // Nothing yet
 };

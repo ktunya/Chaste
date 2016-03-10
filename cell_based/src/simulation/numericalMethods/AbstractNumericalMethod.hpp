@@ -96,10 +96,10 @@ protected:
 	bool mParticleForcesEnabled;
 
 	/**
-	* Computes and stores the force on each node
+	* Computes and stores the force on each node, including the damping factor
 	* @return A vector of applied forces
 	*/
-	std::vector<c_vector<double, SPACE_DIM> > ComputeAndSaveForces();
+	std::vector<c_vector<double, SPACE_DIM> > ComputeAndSaveForcesInclDamping();
 
 	/**
 	* Saves the current location of each cell in the population in a vector. 
@@ -108,15 +108,23 @@ protected:
 	std::vector<c_vector<double, SPACE_DIM> > SaveCurrentLocations();
 
 	/**
-	* Detects nodes that have exceeded the acceptable distance travelled in one timestep.
+ 	* Updates a single node's position, taking into account periodic boundary conditions 
+ 	*
+ 	* @param nodeIndex Index of the node to update
+ 	* @param newPosition C_vector holding the new node position
+ 	*/
+ 	void SafeNodePositionUpdate(unsigned nodeIndex, c_vector<double, SPACE_DIM> newPosition);
+
+	/**
+	* Detects whether a node has exceeded the acceptable displacement for one timestep.
 	* If a step size exception has occurred, it either causes the simulation to terminate or,
 	* in adaptive simulations, the exception is caught and the step size is reduced in response.
 	*
+	* @param nodeIndex Index of the node being examined
 	* @param displacement Displacement of the node this step
 	* @param dt Time step size
-	* @param nodeIndex Index of the node being examined
 	*/
-	void HandleStepSizeExceptions(c_vector<double,SPACE_DIM>* displacement, double dt, unsigned nodeIndex);
+	void DetectStepSizeExceptions(unsigned nodeIndex, c_vector<double,SPACE_DIM>* displacement, double dt);
 
 
 public:	

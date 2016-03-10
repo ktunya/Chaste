@@ -49,35 +49,38 @@ ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::~ForwardEulerNumericalMethod
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>  
 void ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(double dt){
 
-    if(this->mNonEulerSteppersEnabled){
+  if(this->mNonEulerSteppersEnabled){
 
-        std::vector<c_vector<double, SPACE_DIM> > F = this->ComputeAndSaveForces();
+    // Apply forces to each cell, and save a vector of net forces F
+    std::vector<c_vector<double, SPACE_DIM> > F = this->ComputeAndSaveForcesInclDamping();
 
-        int index = 0;
-        for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->pCellPopulation->rGetMesh().GetNodeIteratorBegin();
-             node_iter != this->pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter, ++index)
-        {
-            c_vector<double, SPACE_DIM> oldLocation = node_iter->rGetLocation();
-            c_vector<double, SPACE_DIM> displacement = dt * F[index];
+    int index = 0;
+    for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->pCellPopulation->rGetMesh().GetNodeIteratorBegin();
+         node_iter != this->pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter, ++index)
+    {
+      // Get the current node location and calculate the new location according to forward Euler 
+      c_vector<double, SPACE_DIM> oldLocation = node_iter->rGetLocation();
+      c_vector<double, SPACE_DIM> displacement = dt * F[index];
 
-            this->HandleStepSizeExceptions(&displacement, dt, node_iter->GetIndex());
+      this->DetectStepSizeExceptions(node_iter->GetIndex(), &displacement, dt);
 
-            c_vector<double, SPACE_DIM> newLocation = oldLocation + displacement;
-                            
-            ChastePoint<SPACE_DIM> new_point(newLocation);
-            this->pCellPopulation->SetNode(node_iter->GetIndex(), new_point);
-        }
-
-    }else{
-
-        this->ComputeAndSaveForces();
-        this->pCellPopulation->UpdateNodeLocations(dt);    
+      c_vector<double, SPACE_DIM> newLocation = oldLocation + displacement;
+      this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);
     }
+
+  }else{
+
+    // If this type of cell population does not support the new numerical methods, delegate 
+    // updating node positions to the population itself.
+    // Basically only applies to NodeBasedCellPopulationWithBuskeUpdates.     
+    this->ComputeAndSaveForcesInclDamping();
+    this->pCellPopulation->UpdateNodeLocations(dt);    
+  }
 };
 
-
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>  
 void ForwardEulerNumericalMethod<ELEMENT_DIM, SPACE_DIM>::OutputNumericalMethodParameters(out_stream& rParamsFile){
-  // Nothing yet
+  // Nothing here yet
 };
 
 

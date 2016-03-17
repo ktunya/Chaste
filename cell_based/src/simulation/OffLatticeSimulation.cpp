@@ -344,9 +344,9 @@ void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OutputAdditionalSimulationSetu
     *rParamsFile << "\t</CellPopulationBoundaryConditions>\n";
 
     // Output numerical method details
-    *rParamsFile << "\n\t<numericalMethod>\n";
+    *rParamsFile << "\n\t<NumericalMethod>\n";
     mNumericalMethod->OutputNumericalMethodInfo(rParamsFile);
-    *rParamsFile << "\t</numericalMethod>\n";
+    *rParamsFile << "\t</NumericalMethod>\n";
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>

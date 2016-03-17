@@ -58,6 +58,10 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "CellPropertyRegistry.hpp"
 #include "SmartPointers.hpp"
 #include "FileComparison.hpp"
+#include "PopulationTestingForce.hpp"
+#include "ForwardEulerNumericalMethod.hpp"
+#include "RK4NumericalMethod.hpp"
+#include "Warnings.hpp"
 
 // Cell writers
 #include "CellAgesWriter.hpp"
@@ -647,8 +651,6 @@ public:
 
     void TestUpdateNodeLocations()
     {
-        // Test MeshBasedCellPopulation::UpdateNodeLocations()
-
         // Create a simple mesh
         TrianglesMeshReader<2,2> mesh_reader("mesh/test/data/square_4_elements");
         MutableMesh<2,2> mesh;
@@ -660,34 +662,54 @@ public:
 
         // Create a cell population, with no ghost nodes at the moment
         MeshBasedCellPopulation<2> cell_population(mesh, cells);
+        cell_population.SetDampingConstantNormal(1.1);
 
-        // Make up some forces
-        std::vector<c_vector<double, 2> > old_posns(cell_population.GetNumNodes());
+        // Create a force collection
+        std::vector<boost::shared_ptr<AbstractForce<2,2> > > force_collection;
+        MAKE_PTR(PopulationTestingForce<2>, p_test_force);
+        force_collection.push_back(p_test_force);
 
-        for (unsigned i=0; i<cell_population.GetNumNodes(); i++)
-        {
-            c_vector<double, 2> force;
+        // Create numerical methods for testing
+        std::vector<boost::shared_ptr<AbstractNumericalMethod<2> > > methods;
+        MAKE_PTR(ForwardEulerNumericalMethod<2>, p_fe_method);
+        methods.push_back(p_fe_method);
+        MAKE_PTR(ForwardEulerNumericalMethod<2>, p_rk4_method);
+        methods.push_back(p_rk4_method);
+        
+        double dt = 0.01;
+        for(int i=0; i<methods.size(); i++){
 
-            old_posns[i][0] = cell_population.GetNode(i)->rGetLocation()[0];
-            old_posns[i][1] = cell_population.GetNode(i)->rGetLocation()[1];
+            methods[i]->SetCellPopulation(&cell_population);
+            methods[i]->SetForceCollection(&force_collection);
 
-            force[0] = i*0.01;
-            force[1] = 2*i*0.01;
+            // Save starting positions
+            std::vector<c_vector<double, 2> > old_posns(cell_population.GetNumNodes());
+            for(int j=0; j<cell_population.GetNumNodes(); j++){
+                old_posns[j][0] = cell_population.GetNode(j)->rGetLocation()[0];
+                old_posns[j][1] = cell_population.GetNode(j)->rGetLocation()[1];
+            }
+         
+            // Update positions and check the answer   
+            methods[i]->UpdateAllNodePositions(dt);
 
-            cell_population.GetNode(i)->ClearAppliedForce();
-            cell_population.GetNode(i)->AddAppliedForceContribution(force);
+            for(int j=0; j<cell_population.GetNumNodes(); j++){
+                
+                c_vector<double, 2> actualLocation = cell_population.GetNode(j)->rGetLocation();
+                
+                double damping =  cell_population.GetDampingConstant(j);
+                c_vector<double, 2> expectedLocation;
+                if(dynamic_cast<ForwardEulerNumericalMethod<2>*>( methods[i].get() )){
+                    expectedLocation = p_test_force->GetExpectedOneStepLocationFE(j, damping, old_posns[j], dt);
+                }else if(dynamic_cast<RK4NumericalMethod<2>*>( methods[i].get() )){
+                    expectedLocation = p_test_force->GetExpectedOneStepLocationRK4(j, damping, old_posns[j], dt);
+                }else{
+                    WARN_ONCE_ONLY("Unrecognised numerical method in TestMeshBasedCellPopulation.");
+                }
+                
+                TS_ASSERT_DELTA(norm_2(actualLocation - expectedLocation), 0, 1e-9);
+            }
         }
 
-        // Call method
-        double time_step = 0.01;
-        cell_population.UpdateNodeLocations(time_step);
-
-        // Check that node locations were correctly updated
-        for (unsigned i=0; i<cell_population.GetNumNodes(); i++)
-        {
-            TS_ASSERT_DELTA(cell_population.GetNode(i)->rGetLocation()[0], old_posns[i][0] +   i*0.01*0.01, 1e-9);
-            TS_ASSERT_DELTA(cell_population.GetNode(i)->rGetLocation()[1], old_posns[i][1] + 2*i*0.01*0.01, 1e-9);
-        }
     }
 
     void noTestVoronoiMethods()

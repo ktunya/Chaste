@@ -55,6 +55,10 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "CellPropertyRegistry.hpp"
 #include "SmartPointers.hpp"
 #include "FileComparison.hpp"
+#include "PopulationTestingForce.hpp"
+#include "ForwardEulerNumericalMethod.hpp"
+#include "RK4NumericalMethod.hpp"
+#include "Warnings.hpp"
 
 // Cell writers
 #include "CellAgesWriter.hpp"
@@ -536,58 +540,52 @@ public:
         }
 
         NodeBasedCellPopulationWithParticles<2> cell_population(*p_mesh, cells, location_indices);
+        cell_population.SetDampingConstantNormal(1.1);
 
-        // Make up some forces
-        std::vector<c_vector<double, 2> > old_posns(cell_population.GetNumNodes());
+        // Create a force collection
+        std::vector<boost::shared_ptr<AbstractForce<2,2> > > force_collection;
+        MAKE_PTR(PopulationTestingForce<2>, p_test_force);
+        force_collection.push_back(p_test_force);
 
-        for (unsigned i=0; i<cell_population.GetNumNodes(); i++)
-        {
-            c_vector<double, 2> force;
-            old_posns[i][0] = cell_population.GetNode(i)->rGetLocation()[0];
-            old_posns[i][1] = cell_population.GetNode(i)->rGetLocation()[1];
+        // Create numerical methods for testing
+        std::vector<boost::shared_ptr<AbstractNumericalMethod<2> > > methods;
+        MAKE_PTR(ForwardEulerNumericalMethod<2>, p_fe_method);
+        methods.push_back(p_fe_method);
+        MAKE_PTR(ForwardEulerNumericalMethod<2>, p_rk4_method);
+        methods.push_back(p_rk4_method);
+        
+        double dt = 0.01;
+        for(int i=0; i<methods.size(); i++){
 
-            force[0] = i*0.01;
-            force[1] = 2*i*0.01;
+            methods[i]->SetCellPopulation(&cell_population);
+            methods[i]->SetForceCollection(&force_collection);
 
-            cell_population.GetNode(i)->ClearAppliedForce();
-            cell_population.GetNode(i)->AddAppliedForceContribution(force);
-        }
+            // Save starting positions
+            std::vector<c_vector<double, 2> > old_posns(cell_population.GetNumNodes());
+            for(int j=0; j<cell_population.GetNumNodes(); j++){
+                old_posns[j][0] = cell_population.GetNode(j)->rGetLocation()[0];
+                old_posns[j][1] = cell_population.GetNode(j)->rGetLocation()[1];
+            }
+         
+            // Update positions and check the answer   
+            methods[i]->UpdateAllNodePositions(dt);
 
-        // Call method
-        double time_step = 0.01;
-        cell_population.UpdateNodeLocations(time_step);
-
-        // Check that cells locations were correctly updated
-        for (AbstractCellPopulation<2>::Iterator cell_iter = cell_population.Begin();
-             cell_iter != cell_population.End();
-             ++cell_iter)
-        {
-            unsigned i = cell_population.GetLocationIndexUsingCell(*cell_iter);
-            TS_ASSERT_DELTA(cell_population.GetNode(i)->rGetLocation()[0], old_posns[i][0] +   i*0.01*0.01, 1e-9);
-            TS_ASSERT_DELTA(cell_population.GetNode(i)->rGetLocation()[1], old_posns[i][1] + 2*i*0.01*0.01, 1e-9);
-        }
-
-        // Check that particles were correctly updated
-        // First, create a set of node indices corresponding to particles
-        std::set<unsigned> node_indices;
-        std::set<unsigned> particle_indices;
-
-        for (unsigned i=0; i<p_mesh->GetNumNodes(); i++)
-        {
-            node_indices.insert(p_mesh->GetNode(i)->GetIndex());
-        }
-
-        std::set_difference(node_indices.begin(), node_indices.end(),
-                            location_indices.begin(), location_indices.end(),
-                            std::inserter(particle_indices, particle_indices.begin()));
-
-        // Second, loop over all particles
-        for (std::set<unsigned>::iterator it=particle_indices.begin();
-             it!=particle_indices.end();
-             it++)
-        {
-            TS_ASSERT_DELTA(cell_population.GetNode(*it)->rGetLocation()[0], old_posns[*it][0] +   (*it)*0.01*0.01, 1e-9);
-            TS_ASSERT_DELTA(cell_population.GetNode(*it)->rGetLocation()[1], old_posns[*it][1] + 2*(*it)*0.01*0.01, 1e-9);
+            for(int j=0; j<cell_population.GetNumNodes(); j++){
+                
+                c_vector<double, 2> actualLocation = cell_population.GetNode(j)->rGetLocation();
+                
+                double damping =  cell_population.GetDampingConstant(j);
+                c_vector<double, 2> expectedLocation;
+                if(dynamic_cast<ForwardEulerNumericalMethod<2>*>( methods[i].get() )){
+                    expectedLocation = p_test_force->GetExpectedOneStepLocationFE(j, damping, old_posns[j], dt);
+                }else if(dynamic_cast<RK4NumericalMethod<2>*>( methods[i].get() )){
+                    expectedLocation = p_test_force->GetExpectedOneStepLocationRK4(j, damping, old_posns[j], dt);
+                }else{
+                    WARN_ONCE_ONLY("Unrecognised numerical method in TestNodeBasedCellPopulationWithParticles.");
+                }
+                
+                TS_ASSERT_DELTA(norm_2(actualLocation - expectedLocation), 0, 1e-9);
+            }
         }
     }
 

@@ -63,11 +63,13 @@ void ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(
     {
       // Get the current node location and calculate the new location according to forward Euler 
       c_vector<double, SPACE_DIM> oldLocation = node_iter->rGetLocation();
-      c_vector<double, SPACE_DIM> newLocation = oldLocation + dt * F[index];
-      this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);
+      c_vector<double, SPACE_DIM> displacement = dt * F[index];
 
-      c_vector<double, SPACE_DIM> displacement = (this->pCellPopulation)->rGetMesh().GetVectorFromAtoB(oldLocation, node_iter->rGetLocation());
-      this->DetectStepSizeExceptions(node_iter->GetIndex(), displacement, dt);      
+      // In the vertex-based case, displacement may be scaled if the cellrearrangement threshold is exceeded 
+      this->DetectStepSizeExceptions(node_iter->GetIndex(), displacement, dt);  
+
+      c_vector<double, SPACE_DIM> newLocation = oldLocation + displacement;
+      this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);        
     }
 
     CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);

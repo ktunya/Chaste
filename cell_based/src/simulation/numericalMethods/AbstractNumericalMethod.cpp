@@ -40,7 +40,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AbstractCentreBasedCellPopulation.hpp"
 #include "NodeBasedCellPopulationWithBuskeUpdate.hpp"
 #include "MeshBasedCellPopulationWithGhostNodes.hpp"
-#include "NodeBasedCellPopulationWithParticles.hpp"
 #include "CellBasedEventHandler.hpp"
 
 
@@ -55,7 +54,6 @@ AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::AbstractNumericalMethod()
 
     mNonEulerSteppersEnabled = false;
     mGhostNodeForcesEnabled = true;
-    mParticleForcesEnabled = true;
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -86,12 +84,6 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetCellPopulation(AbstractO
     }else{
         mGhostNodeForcesEnabled = false;
     }
-
-    if(dynamic_cast<NodeBasedCellPopulationWithParticles<SPACE_DIM>*>(pCellPopulation)){
-        mParticleForcesEnabled = true;
-    }else{
-        mParticleForcesEnabled = false;
-    }
 };
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -108,8 +100,6 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetForceCollection(std::vec
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::ComputeAndSaveForcesInclDamping(){
-	
-	CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
 
     for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = pCellPopulation->rGetMesh().GetNodeIteratorBegin();
          node_iter != pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter)
@@ -123,16 +113,13 @@ std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SP
         (*iter)->AddForceContribution(*pCellPopulation);
     }
 
-    // Here we deal with special case forces on non-cell-associated nodes (ghosts and particles)
+    // Here we deal with the special case forces on ghost nodes. I removed special case treatment for particles because
+    // it seems to be unnecessary - they use rGetAppliedForce just like everything else.
+    // TODO: Are we OK with a dynamic cast here? Could always add a virtual method to 
+    // AbstractOffLatticeCellPopulation, something like "ApplyForcesToNonCellNodes"?
     if(mGhostNodeForcesEnabled){
-        //dynamic_cast<MeshBasedCellPopulationWithGhostNodes<SPACE_DIM>*>(&rCellPopulation)->ApplyGhostForces();
+        dynamic_cast<MeshBasedCellPopulationWithGhostNodes<SPACE_DIM>*>(pCellPopulation)->ApplyGhostForces();
     }
-    if(mParticleForcesEnabled){
-        //dynamic_cast<NodeBasedCellPopulationWithParticles<SPACE_DIM>*>(&rCellPopulation)->ApplyParticleForces();
-    }
-    WARN_ONCE_ONLY("REENABLE SPECIAL CASE NODE FORCES (AbstractNumericalMethod)");
-
-    CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
 
     // Store applied forces in a vector
 	std::vector<c_vector<double, SPACE_DIM> > forcesAsVector;
@@ -166,18 +153,17 @@ std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SP
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>  
-void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SafeNodePositionUpdate( unsigned nodeIndex, 
-                                                        c_vector<double, SPACE_DIM> newPosition){
+void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SafeNodePositionUpdate( unsigned nodeIndex, c_vector<double, SPACE_DIM> newPosition){
+   
     ChastePoint<SPACE_DIM> new_point(newPosition);
     pCellPopulation->SetNode(nodeIndex, new_point);
 };
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::DetectStepSizeExceptions(unsigned nodeIndex, c_vector<double,SPACE_DIM>* displacement, double dt){
+void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::DetectStepSizeExceptions(unsigned nodeIndex, c_vector<double,SPACE_DIM>& displacement, double dt){
     
     try{
-        WARN_ONCE_ONLY("REENABLE STEP SIZE EXCEPTIONS (AbstractNumericalMethod)");
-        //pCellPopulation->FindAndAddressStepSizeExceptions(displacement, dt, nodeIndex);
+        pCellPopulation->CheckForStepSizeException(nodeIndex, displacement, dt);
     
     }catch(StepSizeException* e){
 

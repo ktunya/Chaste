@@ -1,12 +1,31 @@
 - Added an AbstractNumericalMethod class, with child classes:
   ForwardEulerNumericalMethod
   RK4NumericalMethod
-  BackwardEulerNumericalMethod
-  AdamsMoulton2NumericalMethod
-  DOP853NumericalMethod
+  BackwardEulerNumericalMethod *TODO
+  AdamsMoulton2NumericalMethod *TODO
+  DOP853NumericalMethod        *TODO
   
 - OffLatticeSimulation now has an AbstractNumericalMethod as a member.
-  A backward-compatible constructor exists that makes a ForwardEulerNumericalMethod before calling the new constructor. 
-  The AbstractNumericalMethod is archived by the OffLatticeSimulation and is therefore set appropriately on loading.
+  If no numerical method is provided in the constructor, a ForwardEulerNumericalMethod is constructed by default.
+  The AbstractNumericalMethod is archived by OffLatticeSimulation and is therefore set appropriately on reloading.
 
-- 
+- The numerical method class is now responsible for calculating forces (including damping) and applying those forces 
+  to nodes, since depending on the numerical scheme forces will need to be evaluated at different positions and times.
+
+- For all cell populations apart from NodeBasedCellPopulationWithBuskeUpdate:
+  Node positions are now updated by the numerical method, not the population itself.
+  For populations requiring special treatment (like NodeBasedCellPopulationWithBuskeUpdate) the old "UpdateNodeLocations"
+  approach still works.
+
+- Each cell population now has a function CheckForStepSizeException, which is responsible for detecting when a 
+  node movement is too large to occur in one time step. This is because different populations impose different kinds of
+  movement threshold (tighter checks for vertex based, weaker checks for ghost nodes and particles). If a problem is detected, a StepSizeException is thrown that is handled at least initially by AbstractNumericalMethod.
+
+- The GetDampingConstant function was modified slightly so that it can return the damping constant of 
+  arbitrary nodes, not just those associated with a cell. 
+
+- Ghost nodes get special treatment in terms of the force they experience (the force on them is calculated separately by a
+  function in MeshBasedCellPopulationWithGhostNodes). 
+
+- There's a new test TestOffLatticeSimulationWithAlternativeNumerics.hpp, which runs a small example simulation for each method
+  and population, testing archiving and warnings.

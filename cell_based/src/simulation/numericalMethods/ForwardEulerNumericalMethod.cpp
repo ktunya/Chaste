@@ -34,6 +34,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "ForwardEulerNumericalMethod.hpp"
+#include "CellBasedEventHandler.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>	
 ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::ForwardEulerNumericalMethod()
@@ -51,6 +52,8 @@ void ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(
 
   if(this->mNonEulerSteppersEnabled){
 
+    CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
+
     // Apply forces to each cell, and save a vector of net forces F
     std::vector<c_vector<double, SPACE_DIM> > F = this->ComputeAndSaveForcesInclDamping();
 
@@ -60,13 +63,14 @@ void ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(
     {
       // Get the current node location and calculate the new location according to forward Euler 
       c_vector<double, SPACE_DIM> oldLocation = node_iter->rGetLocation();
-      c_vector<double, SPACE_DIM> displacement = dt * F[index];
-
-      this->DetectStepSizeExceptions(node_iter->GetIndex(), &displacement, dt);
-
-      c_vector<double, SPACE_DIM> newLocation = oldLocation + displacement;
+      c_vector<double, SPACE_DIM> newLocation = oldLocation + dt * F[index];
       this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);
+
+      c_vector<double, SPACE_DIM> displacement = (this->pCellPopulation)->rGetMesh().GetVectorFromAtoB(oldLocation, node_iter->rGetLocation());
+      this->DetectStepSizeExceptions(node_iter->GetIndex(), displacement, dt);      
     }
+
+    CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
 
   }else{
 

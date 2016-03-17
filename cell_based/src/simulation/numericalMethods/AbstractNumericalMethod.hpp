@@ -90,10 +90,6 @@ protected:
 	*/
 	bool mGhostNodeForcesEnabled;
 
-	/**
-	* A boolean indicating whether this cell population type contains particle nodes. 
-	*/
-	bool mParticleForcesEnabled;
 
 	/**
 	* Computes and stores the force on each node, including the damping factor
@@ -124,7 +120,7 @@ protected:
 	* @param displacement Displacement of the node this step
 	* @param dt Time step size
 	*/
-	void DetectStepSizeExceptions(unsigned nodeIndex, c_vector<double,SPACE_DIM>* displacement, double dt);
+	void DetectStepSizeExceptions(unsigned nodeIndex, c_vector<double,SPACE_DIM>& displacement, double dt);
 
 
 public:	

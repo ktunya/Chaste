@@ -36,7 +36,9 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "PopulationTestingForce.hpp"
 
 template<unsigned  ELEMENT_DIM, unsigned SPACE_DIM>
-PopulationTestingForce<ELEMENT_DIM, SPACE_DIM>::PopulationTestingForce(): AbstractForce<ELEMENT_DIM, SPACE_DIM>()
+PopulationTestingForce<ELEMENT_DIM, SPACE_DIM>::PopulationTestingForce(bool hasPositionDependence)
+:AbstractForce<ELEMENT_DIM, SPACE_DIM>(),
+withPositionDependence(hasPositionDependence)
 {
 }
 
@@ -48,9 +50,12 @@ void PopulationTestingForce<ELEMENT_DIM, SPACE_DIM>::AddForceContribution(Abstra
 		c_vector<double, SPACE_DIM> force;
 
 		for(int j=0; j<SPACE_DIM; j++){
-			
-			force[j] = (j+1)*i*0.01*rCellPopulation.GetNode(i)->rGetLocation()[j];
-		}
+			if(withPositionDependence){
+			  force[j] = (j+1)*i*0.01*rCellPopulation.GetNode(i)->rGetLocation()[j];
+		  }else{
+        force[j] = (j+1)*i*0.01;
+      }
+    }
 
 		rCellPopulation.GetNode(i)->ClearAppliedForce();
 		rCellPopulation.GetNode(i)->AddAppliedForceContribution(force);
@@ -66,7 +71,11 @@ c_vector<double, SPACE_DIM> PopulationTestingForce<ELEMENT_DIM, SPACE_DIM>::GetE
 {
   c_vector<double, SPACE_DIM> result;
   for(int j = 0; j < SPACE_DIM; j++){
-    result[j] = oldLocation[j] + dt * (j+1)*0.01*nodeIndex * oldLocation[j] / damping;
+    if(withPositionDependence){
+      result[j] = oldLocation[j] + dt * (j+1)*0.01*nodeIndex * oldLocation[j] / damping;
+    }else{
+      result[j] = oldLocation[j] + dt * (j+1)*0.01*nodeIndex/damping;
+    }
   }
   return result;
 };

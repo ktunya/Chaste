@@ -190,7 +190,7 @@ public:
     void RemoveAllCellPopulationBoundaryConditions();
 
     /**
-    * Get the current numerical method. Included for archiving purposes.
+    * Get the current numerical method. 
     */
     const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > GetNumericalMethod() const;
 

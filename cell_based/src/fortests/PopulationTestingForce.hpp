@@ -65,11 +65,19 @@ private:
   void serialize(Archive & archive, const unsigned int version)
   {
       archive & boost::serialization::base_object<AbstractForce<ELEMENT_DIM,SPACE_DIM> >(*this);
+      archive & withPositionDependence;
   }
+
+  /**
+  * Whether the applied force should depend on the position of the node, or only its index
+  * Defaults to true, since that's better for testing a variety of numerical methods.
+  * Crypt tests require a position independent test force though.
+  */
+  bool withPositionDependence;
 
 public:
 
-	PopulationTestingForce();
+	PopulationTestingForce(bool hasPositionDependence = true);
 
 
 	void AddForceContribution(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation);

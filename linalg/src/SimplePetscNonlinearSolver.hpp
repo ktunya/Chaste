@@ -47,6 +47,23 @@ class SimplePetscNonlinearSolver : public AbstractNonlinearSolver
 {
 public:
 
+  /**
+  * Constructor. Sets default tolerance of 1e-5
+  */
+  SimplePetscNonlinearSolver();
+
+  /**
+  * Tolerance, determines an acceptable residual for a solution
+  */
+  double tolerance;
+
+  /**
+  * Sets the solver tolerance
+  *
+  * @param tol The new tolerance
+  */
+  void SetTolerance(double tol);
+
 /**
  * Simple Nonlinear PDE system solver, uses the PETSc SNES Solver, which uses Newton's method.
  *

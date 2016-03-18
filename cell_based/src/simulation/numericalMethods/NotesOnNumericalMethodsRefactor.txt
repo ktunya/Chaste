@@ -7,25 +7,24 @@
   
 - OffLatticeSimulation now has an AbstractNumericalMethod as a member.
   If no numerical method is provided in the constructor, a ForwardEulerNumericalMethod is constructed by default.
-  The AbstractNumericalMethod is archived by OffLatticeSimulation and is therefore set appropriately on reloading.
+  The AbstractNumericalMethod is archived by OffLatticeSimulation, and is therefore set appropriately on reloading.
 
-- The numerical method class is now responsible for calculating forces (including damping) and applying those forces 
-  to nodes, since depending on the numerical scheme forces will need to be evaluated at different positions and times.
+- The numerical method class is now responsible for calculating forces (including damping) and applying those forces to nodes, since depending on the numerical scheme forces will need to be evaluated at different positions and times.
 
 - For all cell populations apart from NodeBasedCellPopulationWithBuskeUpdate:
-  Node positions are now updated by the numerical method, not the population itself.
-  For populations requiring special treatment (like NodeBasedCellPopulationWithBuskeUpdate) the old "UpdateNodeLocations"
-  approach still works.
+  Node positions are now updated by the numerical method, not by the population itself.
+  For populations that require special treatment (just NodeBasedCellPopulationWithBuskeUpdate at present) the old "UpdateNodeLocations" method still works.
 
-- Each cell population now has a function CheckForStepSizeException, which is responsible for detecting when a 
-  node movement is too large to occur in one time step. This is because different populations impose different kinds of
-  movement threshold (tighter checks for vertex based, weaker checks for ghost nodes and particles). If a problem is detected, a StepSizeException is thrown that is handled at least initially by AbstractNumericalMethod.
+- Each cell population now has a function CheckForStepSizeException, which is responsible for detecting when a node movement is too large to occur in one time step. This is necessary because different populations impose different kinds of movement threshold (tighter checks for vertex based, weaker checks for ghost nodes and particles). 
+If a problem is detected, a StepSizeException is thrown that is handled initially by AbstractNumericalMethod.
 
-- The GetDampingConstant function was modified slightly so that it can return the damping constant of 
-  arbitrary nodes, not just those associated with a cell. 
+- The GetDampingConstant function in AbstractCentreBasedCellPopulation was modified slightly so that it can return the damping constant of 
+  arbitrary nodes, not just nodes associated with a cell. 
 
-- Ghost nodes get special treatment in terms of the force they experience (the force on them is calculated separately by a
-  function in MeshBasedCellPopulationWithGhostNodes). 
+- Ghost nodes get special treatment in terms of the forces they experience. The force on them is calculated separately by a
+  function ApplyGhostForces in MeshBasedCellPopulationWithGhostNodes. 
 
-- There's a new test TestOffLatticeSimulationWithAlternativeNumerics.hpp, which runs a small example simulation for each method
-  and population, testing archiving and warnings.
+- There's a new test (TestOffLatticeSimulationWithAlternativeNumerics.hpp), which runs a small example simulation for each method
+  and population, testing archiving and warnings. It's been added to the Continuous test pack.
+
+- A few old tests had to be modified. In particular, many cell population tests were checking the result of UpdateNodeLocations, which is now mostly deprecated. I altered them to check the result of calling update on the numerical method instead.

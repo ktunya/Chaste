@@ -61,6 +61,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "PopulationTestingForce.hpp"
 #include "ForwardEulerNumericalMethod.hpp"
 #include "RK4NumericalMethod.hpp"
+#include "BackwardEulerNumericalMethod.hpp"
+#include "AdamsMoultonNumericalMethod.hpp"
 #include "Warnings.hpp"
 
 // Cell writers
@@ -81,6 +83,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "CellProliferativeTypesCountWriter.hpp"
 #include "NodeVelocityWriter.hpp"
 #include "VoronoiDataWriter.hpp"
+
 
 #include "PetscSetupAndFinalize.hpp"
 
@@ -673,9 +676,13 @@ public:
         std::vector<boost::shared_ptr<AbstractNumericalMethod<2> > > methods;
         MAKE_PTR(ForwardEulerNumericalMethod<2>, p_fe_method);
         methods.push_back(p_fe_method);
-        MAKE_PTR(ForwardEulerNumericalMethod<2>, p_rk4_method);
+        MAKE_PTR(RK4NumericalMethod<2>, p_rk4_method);
         methods.push_back(p_rk4_method);
-        
+        MAKE_PTR(BackwardEulerNumericalMethod<2>, p_be_method);
+        methods.push_back(p_be_method);
+        MAKE_PTR(AdamsMoultonNumericalMethod<2>, p_am_method);
+        methods.push_back(p_am_method);
+
         double dt = 0.01;
         for(int i=0; i<methods.size(); i++){
 
@@ -702,11 +709,15 @@ public:
                     expectedLocation = p_test_force->GetExpectedOneStepLocationFE(j, damping, old_posns[j], dt);
                 }else if(dynamic_cast<RK4NumericalMethod<2>*>( methods[i].get() )){
                     expectedLocation = p_test_force->GetExpectedOneStepLocationRK4(j, damping, old_posns[j], dt);
+                }else if(dynamic_cast<BackwardEulerNumericalMethod<2>*>( methods[i].get() )){
+                    expectedLocation = p_test_force->GetExpectedOneStepLocationBE(j, damping, old_posns[j], dt);
+                }else if(dynamic_cast<AdamsMoultonNumericalMethod<2>*>( methods[i].get() )){
+                    expectedLocation = p_test_force->GetExpectedOneStepLocationAM2(j, damping, old_posns[j], dt);
                 }else{
                     WARN_ONCE_ONLY("Unrecognised numerical method in TestMeshBasedCellPopulation.");
                 }
                 
-                TS_ASSERT_DELTA(norm_2(actualLocation - expectedLocation), 0, 1e-9);
+                TS_ASSERT_DELTA(norm_2(actualLocation - expectedLocation), 0, 1e-6);
             }
         }
 

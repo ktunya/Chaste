@@ -36,103 +36,74 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef POPULATIONTESTINGFORCE_HPP_
 #define POPULATIONTESTINGFORCE_HPP_
 
+#include "ChasteSerialization.hpp"
+#include <boost/serialization/base_object.hpp>
 #include "AbstractForce.hpp"
 
-
 /**
-* A simple force used to test node location updates across several of the off-lattice cell population tests
+* A simple force law used to test node location updates across several test files
 */
 
 template<unsigned  ELEMENT_DIM, unsigned SPACE_DIM=ELEMENT_DIM>
 class PopulationTestingForce : public AbstractForce<ELEMENT_DIM, SPACE_DIM> {
 
+private:
+
+  /**
+  * Archiving.
+  */
+  friend class boost::serialization::access;
+  
+  /**
+  * Boost Serialization method for archiving/checkpointing.
+  * Archives the object and its member variables.
+  *
+  * @param archive  The boost archive.
+  * @param version  The current version of this class.
+  */
+  template<class Archive>
+  void serialize(Archive & archive, const unsigned int version)
+  {
+      archive & boost::serialization::base_object<AbstractForce<ELEMENT_DIM,SPACE_DIM> >(*this);
+  }
+
 public:
 
-	PopulationTestingForce(): AbstractForce<ELEMENT_DIM, SPACE_DIM>()
-	{
-	}
+	PopulationTestingForce();
 
 
-	virtual void AddForceContribution(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation){	
-
-		for (unsigned i=0; i<rCellPopulation.GetNumNodes(); i++){
-            
-      c_vector<double, SPACE_DIM> force;
-
-      for(int j=0; j<SPACE_DIM; j++){
-      	
-      	force[j] = (j+1)*i*0.01*rCellPopulation.GetNode(i)->rGetLocation()[j];
-      }
-
-      rCellPopulation.GetNode(i)->ClearAppliedForce();
-      rCellPopulation.GetNode(i)->AddAppliedForceContribution(force);
-    }
-	};
+	void AddForceContribution(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation);
 
 
   c_vector<double, SPACE_DIM> GetExpectedOneStepLocationFE(int nodeIndex,
                                                            double damping,
                                                            c_vector<double, SPACE_DIM>& oldLocation, 
-                                                           double dt)
-  {
-    c_vector<double, SPACE_DIM> result;
-
-    for(int j = 0; j < SPACE_DIM; j++){
-      result[j] = oldLocation[j] + dt * (j+1)*0.01*nodeIndex * oldLocation[j] / damping;
-    }
-    return result;
-  };
+                                                           double dt);
 
 
   c_vector<double, SPACE_DIM> GetExpectedOneStepLocationRK4(int nodeIndex,
                                                            double damping,
                                                            c_vector<double, SPACE_DIM>& oldLocation, 
-                                                           double dt)
-  {  
-    c_vector<double, SPACE_DIM> result;
-    
-    for(int j = 0; j < SPACE_DIM; j++){
-      double k1 = (j+1)*0.01*nodeIndex * oldLocation[j] / damping;
-      double k2 = (j+1)*0.01*nodeIndex * (oldLocation[j] + (dt/2.0)*k1) / damping;
-      double k3 = (j+1)*0.01*nodeIndex * (oldLocation[j] + (dt/2.0)*k2) / damping;
-      double k4 = (j+1)*0.01*nodeIndex * (oldLocation[j] + dt*k3) / damping;
-      result[j] = oldLocation[j] + (1.0/6.0)*dt*(k1 + 2*k2 + 2*k3 + k4);
-    }
-    return result;
-  };
+                                                           double dt);
 
 
   c_vector<double, SPACE_DIM> GetExpectedOneStepLocationAM2(int nodeIndex,
                                                            double damping,
                                                            c_vector<double, SPACE_DIM>& oldLocation, 
-                                                           double dt)
-  {  
-    c_vector<double, SPACE_DIM> result;
-    
-    for(int j = 0; j < SPACE_DIM; j++){        
-      result[j] = oldLocation[j] * (1 + 0.5*dt*0.01*(j+1)*nodeIndex / damping) / (1 - 0.5*dt*0.01*(j+1)*nodeIndex / damping);
-    }
-    return result;
-  };
+                                                           double dt);
 
 
   c_vector<double, SPACE_DIM> GetExpectedOneStepLocationBE(int nodeIndex,
                                                            double damping,
                                                            c_vector<double, SPACE_DIM>& oldLocation, 
-                                                           double dt)
-  {  
-    c_vector<double, SPACE_DIM> result;
-
-    for(int j = 0; j < SPACE_DIM; j++){
-      result[j] = oldLocation[j] / (1-dt*0.01*(j+1)*nodeIndex / damping);
-    }
-    return result;
-  };
+                                                           double dt);
 
 
-	virtual void OutputForceParameters(out_stream& rParamsFile){		
-	};
+	virtual void OutputForceParameters(out_stream& rParamsFile);
 
 };
+
+#include "SerializationExportWrapper.hpp"
+EXPORT_TEMPLATE_CLASS_ALL_DIMS(PopulationTestingForce)
 
 #endif /*POPULATIONTESTINGFORCE_HPP_*/ 

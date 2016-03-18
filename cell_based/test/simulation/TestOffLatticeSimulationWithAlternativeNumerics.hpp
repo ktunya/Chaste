@@ -56,10 +56,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "NagaiHondaForce.hpp"
 #include "SimpleTargetAreaModifier.hpp"
 #include "GeneralisedLinearSpringForce.hpp"
-#include "DiffusionForce.hpp"
+#include "PopulationTestingForce.hpp"
 #include "StochasticDurationCellCycleModel.hpp"
 
 #include "ForwardEulerNumericalMethod.hpp"
+#include "BackwardEulerNumericalMethod.hpp"
+#include "AdamsMoultonNumericalMethod.hpp"
 #include "RK4NumericalMethod.hpp"
 
 #include "PetscSetupAndFinalize.hpp"
@@ -73,292 +75,215 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class TestOffLatticeSimulationWithAlternativeNumerics : public AbstractCellBasedTestSuite
 {
 
+private:
+
+    void ResetForNewRun(){
+        RandomNumberGenerator::Instance()->Reseed(0);
+        SimulationTime::Instance()->Destroy();
+        SimulationTime::Instance()->SetStartTime(0.0);
+        CellId::ResetMaxCellId();
+    }
+
+    template <unsigned DIM>
+    void PopulateMethodAndFilenameVectors(std::vector<boost::shared_ptr<AbstractNumericalMethod<DIM> > >& nMethods,
+                                          std::vector<std::string>& filenames,
+                                          std::string filenamePrefix)
+    {
+        MAKE_PTR(ForwardEulerNumericalMethod<DIM>, fe_method);
+        nMethods.push_back(fe_method);
+        filenames.push_back(filenamePrefix + std::string("FE"));
+
+        MAKE_PTR(RK4NumericalMethod<DIM>, rk4_method);
+        nMethods.push_back(rk4_method);
+        filenames.push_back(filenamePrefix + std::string("RK4"));
+
+        MAKE_PTR(AdamsMoultonNumericalMethod<DIM>, am_method);
+        nMethods.push_back(am_method);
+        filenames.push_back(filenamePrefix + std::string("AM"));
+
+        MAKE_PTR(BackwardEulerNumericalMethod<DIM>, be_method);
+        nMethods.push_back(be_method);
+        filenames.push_back(filenamePrefix + std::string("BE"));
+    }
+
 public:
 
-    void TestDefaultNodeBasedSimulationWithParticles() //throw (Exception)
+    void TestNodeBasedSimulationWithParticles() throw (Exception)
     {
-        EXIT_IF_PARALLEL;
+        std::vector<boost::shared_ptr<AbstractNumericalMethod<3> > > methods; 
+        std::vector<std::string> outputFilenames;
+        PopulateMethodAndFilenameVectors<3>(methods, outputFilenames, std::string("NodeBased"));
 
-        // Make a typical node based simulation with particles
-        std::vector<Node<3>*> nodes;
-        nodes.push_back(new Node<3>(0,  true,  0.25, 0.0, 0.0));
-        nodes.push_back(new Node<3>(1,  true, -0.25, 0.0, 0.0));
-        nodes.push_back(new Node<3>(2,  false, 0.0, 0.25, 0.0));
-        nodes.push_back(new Node<3>(3,  false, 0.0, -0.25, 0.0));
+        for(int m = 0; m < methods.size(); m++){
 
-        MAKE_PTR(NodesOnlyMesh<3>, p_mesh);
-        p_mesh->ConstructNodesWithoutMesh(nodes, 1.5);
+            ResetForNewRun();
+            boost::shared_ptr<AbstractNumericalMethod<3> > p_numerical_method = methods[m];
+            std::string filename = outputFilenames[m];
 
-        // Specify which nodes correspond to cells (the rest are particles)
-        std::vector<unsigned> location_indices;
-        location_indices.push_back(0u);
-        location_indices.push_back(1u);
-        location_indices.push_back(2u);
+            // Make a typical node based population with particles
+            std::vector<Node<3>*> nodes;
+            nodes.push_back(new Node<3>(0,  true,  1.0, 0.0, 0.0));
+            nodes.push_back(new Node<3>(1,  true, -1.0, 0.0, 0.0));
+            nodes.push_back(new Node<3>(2,  false, 0.0, 1.0, 0.0));
+            nodes.push_back(new Node<3>(3,  false, 0.0, -1.0, 0.0));
+            MAKE_PTR(NodesOnlyMesh<3>, p_mesh);
+            p_mesh->ConstructNodesWithoutMesh(nodes, 1.5);
 
-        std::vector<CellPtr> cells;
-        MAKE_PTR(TransitCellProliferativeType, p_transit_type);
-        CellsGenerator<StochasticDurationCellCycleModel, 3> cells_generator;
-        cells_generator.GenerateGivenLocationIndices(cells, location_indices);       
-        NodeBasedCellPopulationWithParticles<3> cell_population(*p_mesh, cells, location_indices);
+            // Specify which nodes correspond to cells (the rest are particles)
+            std::vector<unsigned> location_indices;
+            location_indices.push_back(0u);
+            location_indices.push_back(1u);
+            location_indices.push_back(2u);
 
-       	// Make a simulation using the default numerical method (FE)
-        OffLatticeSimulation<3> simulator(cell_population);
-        simulator.SetOutputDirectory("NodeBasedFE");
-        simulator.SetDt(1.0/120.0);
-        simulator.SetSamplingTimestepMultiple(120);
-        simulator.SetEndTime(0.1);
+            std::vector<CellPtr> cells;
+            MAKE_PTR(TransitCellProliferativeType, p_transit_type);
+            CellsGenerator<StochasticDurationCellCycleModel, 3> cells_generator;
+            cells_generator.GenerateGivenLocationIndices(cells, location_indices);       
+            NodeBasedCellPopulationWithParticles<3> cell_population(*p_mesh, cells, location_indices);
 
-        // Add a spring force
-        MAKE_PTR(DiffusionForce<3>, p_diff_force);
-        simulator.AddForce(p_diff_force);
+            // Make a simulation using the appropriate numerical method and output filename
+            OffLatticeSimulation<3> simulator(cell_population, false, true, p_numerical_method);
+            simulator.SetOutputDirectory(filename.c_str());
+            simulator.SetDt(1.0/120.0);
+            simulator.SetSamplingTimestepMultiple(120);
+            simulator.SetEndTime(0.05);
 
-        // Run and archive the simulation
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(simulator.Solve());
-        CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Save(&simulator);
+            // Add a force
+            MAKE_PTR(PopulationTestingForce<3>, p_force);
+            simulator.AddForce(p_force);
 
-        // Load the simulation and exceed the Absolute Movement Threshold
-        OffLatticeSimulation<3>* p_new_simulator;
-        p_new_simulator = CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Load("NodeBasedFE", 0.1);
-        AbstractCellPopulation<3,3>* p_population = &(p_new_simulator->rGetCellPopulation());
-        dynamic_cast<AbstractOffLatticeCellPopulation<3,3>*>(p_population)->SetAbsoluteMovementThreshold(0.001);
-        p_new_simulator->SetEndTime(0.2);
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:");
+            // Run and archive
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_NOTHING(simulator.Solve());
+            CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Save(&simulator);
 
-        for (unsigned i=0; i<nodes.size();i++)
-        {
-            delete nodes[i];
+            // Reload the simulation and exceed the Absolute Movement Threshold
+            OffLatticeSimulation<3>* p_new_simulator;
+            p_new_simulator = CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Load(filename.c_str(), 0.05);
+            
+            AbstractCellPopulation<3,3>* p_population = &(p_new_simulator->rGetCellPopulation());
+            dynamic_cast<AbstractOffLatticeCellPopulation<3,3>*>(p_population)->SetAbsoluteMovementThreshold(0.0001);
+            p_new_simulator->SetEndTime(0.1);
+            
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:");
+            
+            for (unsigned i=0; i<nodes.size();i++)
+            {
+                delete nodes[i];
+            }
         }
     }
 
 
-    void TestRK4NodeBasedSimulation() //throw (Exception)
-    {   
-        EXIT_IF_PARALLEL;
+    void TestVertexBasedSimulation() throw (Exception){
 
-        // Make a typical node based simulation with particles
-        std::vector<Node<3>*> nodes;
-        nodes.push_back(new Node<3>(0,  true,  0.25, 0.0, 0.0));
-        nodes.push_back(new Node<3>(1,  true, -0.25, 0.0, 0.0));
-        nodes.push_back(new Node<3>(2,  false, 0.0, 0.25, 0.0));
-        nodes.push_back(new Node<3>(3,  false, 0.0, -0.25, 0.0));
+        std::vector<boost::shared_ptr<AbstractNumericalMethod<2> > > methods; 
+        std::vector<std::string> outputFilenames;
+        PopulateMethodAndFilenameVectors<2>(methods, outputFilenames, std::string("VertexBased"));
 
-        MAKE_PTR(NodesOnlyMesh<3>, p_mesh);
-        p_mesh->ConstructNodesWithoutMesh(nodes, 1.5);
+        for(int m = 0; m < methods.size(); m++){
 
-        // Specify which nodes correspond to cells (the rest are particles)
-        std::vector<unsigned> location_indices;
-        location_indices.push_back(0u);
-        location_indices.push_back(1u);
+            ResetForNewRun();
+            boost::shared_ptr<AbstractNumericalMethod<2> > p_numerical_method = methods[m];
+            std::string filename = outputFilenames[m];
+        
+    	    // Make a typical vertex based simulation
+            HoneycombVertexMeshGenerator generator(5, 5);
+            MutableVertexMesh<2,2>* p_mesh = generator.GetMesh();
 
-        std::vector<CellPtr> cells;
-        MAKE_PTR(TransitCellProliferativeType, p_transit_type);
-        CellsGenerator<StochasticDurationCellCycleModel, 3> cells_generator;
-        cells_generator.GenerateGivenLocationIndices(cells, location_indices);       
-        NodeBasedCellPopulationWithParticles<3> cell_population(*p_mesh, cells, location_indices);
+            std::vector<CellPtr> cells;
+            MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);
+            CellsGenerator<StochasticDurationCellCycleModel, 2> cells_generator;
+            cells_generator.GenerateBasic(cells, p_mesh->GetNumElements(), std::vector<unsigned>(), p_diff_type);
+            VertexBasedCellPopulation<2> cell_population(*p_mesh, cells);
 
-        // Make a simulation using the RK4 numerical method
-        MAKE_PTR(RK4NumericalMethod<3>, rk4Method);
-        OffLatticeSimulation<3> simulator(cell_population, false, true, rk4Method);
-        simulator.SetOutputDirectory("NodeBasedRK");
-        simulator.SetDt(1.0/120.0);
-        simulator.SetSamplingTimestepMultiple(120);
-        simulator.SetEndTime(0.1);
+            // Set up a simulation with the appropriate numerical method
+            OffLatticeSimulation<2> simulator(cell_population, false, true, p_numerical_method);
+            simulator.SetOutputDirectory(filename.c_str());
+            simulator.SetSamplingTimestepMultiple(500);
+            simulator.SetDt(1.0/500.0);
+            simulator.SetEndTime(0.05);
 
-        // Add a spring force
-        MAKE_PTR(DiffusionForce<3>, p_diff_force);
-        simulator.AddForce(p_diff_force);
+            // Add a Nagai-Honda force
+            MAKE_PTR(NagaiHondaForce<2>, p_nagai_honda_force);
+            simulator.AddForce(p_nagai_honda_force);
+            MAKE_PTR(SimpleTargetAreaModifier<2>, p_growth_modifier);
+            simulator.AddSimulationModifier(p_growth_modifier);
 
-        // Run and archive the simulation
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(simulator.Solve());
-        CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Save(&simulator);
-
-        // Load the simulation and exceed the Absolute Movement Threshold
-        OffLatticeSimulation<3>* p_new_simulator;
-        p_new_simulator = CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Load("NodeBasedRK", 0.1);
-        AbstractCellPopulation<3,3>* p_population = &(p_new_simulator->rGetCellPopulation());
-        dynamic_cast<AbstractOffLatticeCellPopulation<3,3>*>(p_population)->SetAbsoluteMovementThreshold(0.001);
-        p_new_simulator->SetEndTime(0.2);
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:"); 
-
-        for (unsigned i=0; i<nodes.size();i++)
-        {
-            delete nodes[i];
+            // Run a simulation. Check that the appropriate step size warning is there (this one always seems to trigger???) 
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_NOTHING(simulator.Solve());
+            TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), 1u);
+            TS_ASSERT_EQUALS(Warnings::Instance()->GetNextWarningMessage(), "Vertices are moving more than half the CellRearrangementThreshold. This could cause elements to become inverted so the motion has been restricted. Use a smaller timestep to avoid these warnings.");
+            Warnings::QuietDestroy();
+            
+            // Test archiving
+            CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
+            OffLatticeSimulation<2>* p_new_simulator;
+            p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load(filename.c_str(), 0.05);
+            p_new_simulator->SetEndTime(0.1);
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_NOTHING(p_new_simulator->Solve());
+            Warnings::QuietDestroy();
         }
     }
 
-    void TestDefaultVertexBasedSimulation() throw (Exception){
-        
-    	// Make a typical vertex based simulation
-        HoneycombVertexMeshGenerator generator(5, 5);
-        MutableVertexMesh<2,2>* p_mesh = generator.GetMesh();
-
-        std::vector<CellPtr> cells;
-        MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);
-        CellsGenerator<StochasticDurationCellCycleModel, 2> cells_generator;
-        cells_generator.GenerateBasic(cells, p_mesh->GetNumElements(), std::vector<unsigned>(), p_diff_type);
-        VertexBasedCellPopulation<2> cell_population(*p_mesh, cells);
-
-        // Set up a simulation with the default FE numerical method
-        OffLatticeSimulation<2> simulator(cell_population);
-        simulator.SetOutputDirectory("VertexBasedFE");
-        simulator.SetSamplingTimestepMultiple(500);
-        simulator.SetDt(1.0/500.0);
-        simulator.SetEndTime(0.1);
-
-        // Add a Nagai-Honda force
-        MAKE_PTR(NagaiHondaForce<2>, p_nagai_honda_force);
-        simulator.AddForce(p_nagai_honda_force);
-        MAKE_PTR(SimpleTargetAreaModifier<2>, p_growth_modifier);
-        simulator.AddSimulationModifier(p_growth_modifier);
-
-        // Run a simulation. Check that the appropriate step size warning is there (this one always seems to trigger???) 
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(simulator.Solve());
-        TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), 1u);
-        TS_ASSERT_EQUALS(Warnings::Instance()->GetNextWarningMessage(), "Vertices are moving more than half the CellRearrangementThreshold. This could cause elements to become inverted so the motion has been restricted. Use a smaller timestep to avoid these warnings.");
-        Warnings::QuietDestroy();
-        
-        // Test archiving
-        CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
-        OffLatticeSimulation<2>* p_new_simulator;
-        p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load("VertexBasedFE", 0.1);
-        p_new_simulator->SetEndTime(0.2);
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(p_new_simulator->Solve());
-        Warnings::QuietDestroy();
-    }
-
-    void TestRK4VertexBasedSimulation() throw (Exception){
-
-        // Make a typical vertex based simulation
-        HoneycombVertexMeshGenerator generator(5, 5);
-        MutableVertexMesh<2,2>* p_mesh = generator.GetMesh();
-
-        std::vector<CellPtr> cells;
-        MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);
-        CellsGenerator<StochasticDurationCellCycleModel, 2> cells_generator;
-        cells_generator.GenerateBasic(cells, p_mesh->GetNumElements(), std::vector<unsigned>(), p_diff_type);
-        VertexBasedCellPopulation<2> cell_population(*p_mesh, cells);
-
-        // Set up a simulation with an RK4 numerical method
-        MAKE_PTR(RK4NumericalMethod<2>, rk4Method);
-        OffLatticeSimulation<2> simulator(cell_population, false, true, rk4Method);
-        simulator.SetOutputDirectory("VertexBasedRK4");
-        simulator.SetSamplingTimestepMultiple(500);
-        simulator.SetDt(1.0/500.0);
-        simulator.SetEndTime(0.1);
-
-        // Add a Nagai-Honda force
-        MAKE_PTR(NagaiHondaForce<2>, p_nagai_honda_force);
-        simulator.AddForce(p_nagai_honda_force);
-        MAKE_PTR(SimpleTargetAreaModifier<2>, p_growth_modifier);
-        simulator.AddSimulationModifier(p_growth_modifier);
-
-        // Run a simulation. Check that the appropriate step size warning is there (this one always seems to trigger???) 
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(simulator.Solve());
-        TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), 1u);
-        TS_ASSERT_EQUALS(Warnings::Instance()->GetNextWarningMessage(), "Vertices are moving more than half the CellRearrangementThreshold. This could cause elements to become inverted so the motion has been restricted. Use a smaller timestep to avoid these warnings.");
-        Warnings::QuietDestroy();
-        
-        // Test archiving
-        CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
-        OffLatticeSimulation<2>* p_new_simulator;
-        p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load("VertexBasedRK4", 0.1);
-        p_new_simulator->SetEndTime(0.2);
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(p_new_simulator->Solve());
-        Warnings::QuietDestroy();
-    }
+    
 
     void TestDefaultMeshBasedWithGhostNodesSimulation() throw (Exception){
         
-    	// Create a typical MeshBasedSimulationWithGhostNodes
-		HoneycombMeshGenerator generator(6, 6, 1);
-        MutableMesh<2,2>* p_mesh = generator.GetMesh();
-        std::vector<unsigned> location_indices = generator.GetCellLocationIndices();
+        std::vector<boost::shared_ptr<AbstractNumericalMethod<2> > > methods; 
+        std::vector<std::string> outputFilenames;
+        PopulateMethodAndFilenameVectors<2>(methods, outputFilenames, std::string("MeshBased"));
 
-        std::vector<CellPtr> cells;
-        MAKE_PTR(StemCellProliferativeType, p_stem_type);
-        CellsGenerator<StochasticDurationCellCycleModel, 2> cells_generator;
-        cells_generator.GenerateBasic(cells, location_indices.size());
+        for(int m = 0; m < methods.size(); m++){
 
-        MeshBasedCellPopulationWithGhostNodes<2> cellPopulation(*p_mesh, cells, location_indices);
-        cellPopulation.CreateVoronoiTessellation();
-        
-        // Create a simulation with the default FE numerical method
-        OffLatticeSimulation<2> simulator(cellPopulation);
-        simulator.SetOutputDirectory("MeshBasedWithGhostNodesFE");
-        simulator.SetSamplingTimestepMultiple(120);
-        simulator.SetDt(1.0/120.0);
-        simulator.SetEndTime(0.1);
+            ResetForNewRun();
+            boost::shared_ptr<AbstractNumericalMethod<2> > p_numerical_method = methods[m];
+            std::string filename = outputFilenames[m];
 
-        // Add a spring force law
-        MAKE_PTR(GeneralisedLinearSpringForce<2>, pLinearForce);
-        pLinearForce->SetCutOffLength(1.5);
-        simulator.AddForce(pLinearForce);
+    	    // Create a typical MeshBasedSimulationWithGhostNodes
+		    HoneycombMeshGenerator generator(6, 6, 1);
+            MutableMesh<2,2>* p_mesh = generator.GetMesh();
+            std::vector<unsigned> location_indices = generator.GetCellLocationIndices();
 
-        // Solve and check for errors
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(simulator.Solve());
+            std::vector<CellPtr> cells;
+            MAKE_PTR(StemCellProliferativeType, p_stem_type);
+            CellsGenerator<StochasticDurationCellCycleModel, 2> cells_generator;
+            cells_generator.GenerateBasic(cells, location_indices.size());
 
-        // Test archiving and trigger an AbsoluteMovementThreshold error
-        CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
-        OffLatticeSimulation<2>* p_new_simulator;
-        p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load("MeshBasedWithGhostNodesFE", 0.1);
-        AbstractCellPopulation<2,2>* p_population = &(p_new_simulator->rGetCellPopulation());
-        dynamic_cast<AbstractOffLatticeCellPopulation<2,2>*>(p_population)->SetAbsoluteMovementThreshold(0.001);
-        p_new_simulator->SetEndTime(0.2);
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:");
+            MeshBasedCellPopulationWithGhostNodes<2> cellPopulation(*p_mesh, cells, location_indices);
+            cellPopulation.CreateVoronoiTessellation();
+            
+            // Create a simulation with the appropriate numerical method
+            OffLatticeSimulation<2> simulator(cellPopulation, false, true, p_numerical_method);
+            simulator.SetOutputDirectory(filename.c_str());
+            simulator.SetSamplingTimestepMultiple(120);
+            simulator.SetDt(1.0/120.0);
+            simulator.SetEndTime(0.05);
+
+            // Add a spring force law
+            MAKE_PTR(GeneralisedLinearSpringForce<2>, pLinearForce);
+            pLinearForce->SetCutOffLength(1.5);
+            simulator.AddForce(pLinearForce);
+
+            // Solve and check for errors
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_NOTHING(simulator.Solve());
+
+            // Test archiving and trigger an AbsoluteMovementThreshold error
+            CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
+            OffLatticeSimulation<2>* p_new_simulator;
+            p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load(filename.c_str(), 0.05);
+            AbstractCellPopulation<2,2>* p_population = &(p_new_simulator->rGetCellPopulation());
+            dynamic_cast<AbstractOffLatticeCellPopulation<2,2>*>(p_population)->SetAbsoluteMovementThreshold(0.001);
+            p_new_simulator->SetEndTime(0.1);
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:");
+        }
     }
 
-    void TestRK4MeshBasedWithGhostNodesSimulation() throw (Exception){
-
-        // Create a typical MeshBasedSimulationWithGhostNodes
-        HoneycombMeshGenerator generator(6, 6, 1);
-        MutableMesh<2,2>* p_mesh = generator.GetMesh();
-        std::vector<unsigned> location_indices = generator.GetCellLocationIndices();
-
-        std::vector<CellPtr> cells;
-        MAKE_PTR(StemCellProliferativeType, p_stem_type);
-        CellsGenerator<StochasticDurationCellCycleModel, 2> cells_generator;
-        cells_generator.GenerateBasic(cells, location_indices.size());
-
-        MeshBasedCellPopulationWithGhostNodes<2> cellPopulation(*p_mesh, cells, location_indices);
-        cellPopulation.CreateVoronoiTessellation();
-        
-        // Create a simulation with the default FE numerical method
-        MAKE_PTR(RK4NumericalMethod<2>, rk4Method);
-        OffLatticeSimulation<2> simulator(cellPopulation, false, true, rk4Method);
-        simulator.SetOutputDirectory("MeshBasedWithGhostNodesRK4");
-        simulator.SetSamplingTimestepMultiple(120);
-        simulator.SetDt(1.0/120.0);
-        simulator.SetEndTime(0.1);
-
-        // Add a spring force law
-        MAKE_PTR(GeneralisedLinearSpringForce<2>, pLinearForce);
-        pLinearForce->SetCutOffLength(1.5);
-        simulator.AddForce(pLinearForce);
-
-        // Solve and check for errors
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_NOTHING(simulator.Solve());
-
-        // Test archiving and trigger an AbsoluteMovementThreshold error
-        CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
-        OffLatticeSimulation<2>* p_new_simulator;
-        p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load("MeshBasedWithGhostNodesRK4", 0.1);
-        AbstractCellPopulation<2,2>* p_population = &(p_new_simulator->rGetCellPopulation());
-        dynamic_cast<AbstractOffLatticeCellPopulation<2,2>*>(p_population)->SetAbsoluteMovementThreshold(0.001);
-        p_new_simulator->SetEndTime(0.2);
-        CellBasedEventHandler::Reset();
-        TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:");
-    }
 };
   
 #endif /*TESTOFFLATTICESIMULATIONWITHALTERNATIVENUMERICS_HPP_*/

@@ -51,6 +51,7 @@
 	<NumericalMethod>
 		<ForwardEulerNumericalMethod-2-2>
 		</ForwardEulerNumericalMethod-2-2>
+		<AdaptiveStepSize>0</AdaptiveStepSize>
 	</NumericalMethod>
 
 </Chaste>

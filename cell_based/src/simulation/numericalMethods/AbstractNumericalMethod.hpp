@@ -79,6 +79,8 @@ protected:
 	/** Pointer to the force collection to apply*/
 	std::vector<boost::shared_ptr<AbstractForce<ELEMENT_DIM, SPACE_DIM> > >* pForceCollection;
 
+	/** Pointer to the member mAdaptive of the OffLatticeSimulation, determines whether adaptivity is turned on*/
+	bool* pAdaptive;
 
 	/** A boolean flag indicating whether non forward Euler methods are supported for this type of cell 
 	*   population. Allows us to fall back to the old method of updating node positions for populations
@@ -151,6 +153,14 @@ public:
 	* @param pForces Pointer to the simulation's force collection 
 	*/
 	void SetForceCollection(std::vector<boost::shared_ptr<AbstractForce<ELEMENT_DIM, SPACE_DIM> > >* pForces);
+
+	/**
+	* Sets a pointer to OffLatticeSimulation mAdaptive, allows the method to check whether
+	* adaptivity is turned on
+	*
+	* @param pAdaptiveInput Pointer to mAdaptive of OffLatticeSimulation
+	*/
+	void SetAdaptive(bool* pAdaptiveInput);
 
 	/**
 	* Updates node positions according to Newton's 2nd law with overdamping. 

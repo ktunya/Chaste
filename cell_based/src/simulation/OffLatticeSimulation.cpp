@@ -52,9 +52,11 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OffLatticeSimulation(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation,
                                                 bool deleteCellPopulationInDestructor,
                                                 bool initialiseCells,
-                                                boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > numericalMethod)
+                                                boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > numericalMethod,
+                                                bool isAdaptive)
     : AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>(rCellPopulation, deleteCellPopulationInDestructor, initialiseCells),
-      mNumericalMethod(numericalMethod)
+      mNumericalMethod(numericalMethod),
+      mAdaptive(isAdaptive)
 {
 
     if (!dynamic_cast<AbstractOffLatticeCellPopulation<ELEMENT_DIM,SPACE_DIM>*>(&rCellPopulation))
@@ -87,6 +89,7 @@ OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OffLatticeSimulation(AbstractCellPo
 
     mNumericalMethod->SetCellPopulation(dynamic_cast<AbstractOffLatticeCellPopulation<ELEMENT_DIM,SPACE_DIM>*>(&rCellPopulation));
     mNumericalMethod->SetForceCollection(&mForceCollection);
+    mNumericalMethod->SetAdaptive(&mAdaptive);
 }
 
 
@@ -119,34 +122,79 @@ const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > OffLat
     return mNumericalMethod;
 };
 
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+const bool OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::IsAdaptive() const{
+    return mAdaptive;
+};
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::SetAdaptive(bool isAdaptive){
+    mAdaptive = isAdaptive;
+};
+
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::UpdateCellLocationsAndTopology()
 {
     CellBasedEventHandler::BeginEvent(CellBasedEventHandler::POSITION);
 
-    // Store the initial node positions (these may be needed when applying boundary conditions)    
-    std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > old_node_locations;
+    double timeAdvancedSoFar = 0; 
+    double targetTimeStep  = this->mDt;
+    double currentTimeStep = this->mDt;
 
+    while(timeAdvancedSoFar < targetTimeStep){
+
+        // Store the initial node positions (these may be needed when applying boundary conditions)    
+        std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > old_node_locations;
+
+        for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->mrCellPopulation.rGetMesh().GetNodeIteratorBegin();
+            node_iter != this->mrCellPopulation.rGetMesh().GetNodeIteratorEnd();
+            ++node_iter)
+        {
+            old_node_locations[&(*node_iter)] = (node_iter)->rGetLocation();
+        }
+
+        // Try to update node positions according to the numerical method 
+        try{
+
+            mNumericalMethod->UpdateAllNodePositions(currentTimeStep);
+            ApplyBoundaries(old_node_locations);
+
+            // Successful timestep! Update timeAdvancedSoFar and increase the currentTimeStep
+            // (by 1% for now)
+            timeAdvancedSoFar += currentTimeStep;
+            if(mAdaptive){
+                currentTimeStep = fmin(1.01*currentTimeStep, targetTimeStep - timeAdvancedSoFar);
+            }
+
+        }catch(StepSizeException* e){
+            // Detects if a node has travelled too far in a single time step
+            if(mAdaptive){
+                // If adaptivity is switched on, revert node locations and choose a suitable
+                // smaller time step
+                RevertToOldLocations(old_node_locations);
+                currentTimeStep = fmin(e->suggestedNewStep, targetTimeStep - timeAdvancedSoFar); 
+            }else{
+                // If adaptivity is switched off, terminate with an error
+                EXCEPTION(e->what());
+            }
+        }
+
+    }
+
+    CellBasedEventHandler::EndEvent(CellBasedEventHandler::POSITION);
+}
+
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::RevertToOldLocations(std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > old_node_locations){
+    
     for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = this->mrCellPopulation.rGetMesh().GetNodeIteratorBegin();
         node_iter != this->mrCellPopulation.rGetMesh().GetNodeIteratorEnd();
         ++node_iter)
     {
-        old_node_locations[&(*node_iter)] = (node_iter)->rGetLocation();
+        (node_iter)->rGetModifiableLocation() = old_node_locations[&(*node_iter)];
     }
-
-    // Try to update node positions according to the numerical method 
-    try{
-        mNumericalMethod->UpdateAllNodePositions(this->mDt);
-        ApplyBoundaries(old_node_locations);
-
-    }catch(StepSizeException* e){
-        // Detect if a node has travelled too far in a single time step
-        // For now just crash with an error
-        EXCEPTION(e->what());
-    }
-
-    CellBasedEventHandler::EndEvent(CellBasedEventHandler::POSITION);
 }
 
 
@@ -346,6 +394,7 @@ void OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>::OutputAdditionalSimulationSetu
     // Output numerical method details
     *rParamsFile << "\n\t<NumericalMethod>\n";
     mNumericalMethod->OutputNumericalMethodInfo(rParamsFile);
+    *rParamsFile << "\t\t<AdaptiveStepSize>" << (int)mAdaptive << "</AdaptiveStepSize>\n";
     *rParamsFile << "\t</NumericalMethod>\n";
 }
 

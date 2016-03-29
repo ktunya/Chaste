@@ -101,12 +101,23 @@ protected:
     /** The numerical method to use in this simulation. Defaults to forward Euler. */
     boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > mNumericalMethod;
 
+    /** Whether or not to use an adaptive step size. */
+    bool mAdaptive;
+
     /**
      * Overridden UpdateCellLocationsAndTopology() method.
      *
      * Calculate forces and update node positions.
      */
     virtual void UpdateCellLocationsAndTopology();
+
+    /**
+    * Sends nodes back to the positions given in the input map. Used after a failed step
+    * when adaptivity is turned on.
+    *
+    * @param old_node_locations A map linking nodes to their old positions.
+    */
+    void RevertToOldLocations(std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > old_node_locations);
 
 
     /**
@@ -157,12 +168,14 @@ public:
     * @param initialiseCells Whether to initialise cells (defaults to true, set to false when loading
     *     from an archive)
     * @param numericalMethod Pointer to a numerical method object (defaults to forward Euler).
+    * @param isAdaptive Whether or not to use an adaptive step size
     */
     OffLatticeSimulation(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation,
                          bool deleteCellPopulationInDestructor=false,
                          bool initialiseCells=true,
                          boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM> > numericalMethod 
-                          = boost::shared_ptr<ForwardEulerNumericalMethod<ELEMENT_DIM, SPACE_DIM> >(new ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>()) );
+                          = boost::shared_ptr<ForwardEulerNumericalMethod<ELEMENT_DIM, SPACE_DIM> >(new ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>()),
+                         bool isAdaptive=false);
 
 
     /**
@@ -193,6 +206,18 @@ public:
     * Get the current numerical method. 
     */
     const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > GetNumericalMethod() const;
+
+    /**
+    * Returns whether adaptive time stepping is turned on or not. 
+    */
+    const bool IsAdaptive() const;
+
+    /**
+    * Set whether adaptive step size is turned on. 
+    *
+    * @param isAdaptive New value for mAdaptive
+    */
+    void SetAdaptive(bool isAdaptive);
 
     /**
      * Overridden OutputAdditionalSimulationSetup method to output the force and cell
@@ -234,6 +259,9 @@ inline void save_construct_data(
 
     const boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > p_numerical_method = t->GetNumericalMethod();
     ar << p_numerical_method;
+
+    const bool isAdaptive = t->IsAdaptive();
+    ar << isAdaptive;
 }
 
 /**
@@ -250,9 +278,12 @@ inline void load_construct_data(
     boost::shared_ptr<AbstractNumericalMethod<ELEMENT_DIM, SPACE_DIM> > p_numerical_method;
     ar >> p_numerical_method;
 
+    bool isAdaptive;
+    ar >> isAdaptive;
+
     // Invoke inplace constructor to initialise instance, middle two variables set extra
     // member variables to be deleted as they are loaded from archive and to not initialise cells.
-    ::new(t)OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>(*p_cell_population, true, false, p_numerical_method);
+    ::new(t)OffLatticeSimulation<ELEMENT_DIM,SPACE_DIM>(*p_cell_population, true, false, p_numerical_method, isAdaptive);
 }
 }
 } // namespace

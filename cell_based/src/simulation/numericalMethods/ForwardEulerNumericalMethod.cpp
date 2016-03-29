@@ -34,7 +34,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "ForwardEulerNumericalMethod.hpp"
-#include "CellBasedEventHandler.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>	
 ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::ForwardEulerNumericalMethod()
@@ -51,8 +50,6 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(double dt){
 
   if(this->mNonEulerSteppersEnabled){
-
-    CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
 
     // Apply forces to each cell, and save a vector of net forces F
     std::vector<c_vector<double, SPACE_DIM> > F = this->ComputeAndSaveForcesInclDamping();
@@ -71,8 +68,6 @@ void ForwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(
       c_vector<double, SPACE_DIM> newLocation = oldLocation + displacement;
       this->SafeNodePositionUpdate(node_iter->GetIndex(), newLocation);        
     }
-
-    CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
 
   }else{
 

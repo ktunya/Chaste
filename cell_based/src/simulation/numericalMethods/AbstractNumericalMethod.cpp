@@ -40,12 +40,14 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AbstractCentreBasedCellPopulation.hpp"
 #include "NodeBasedCellPopulationWithBuskeUpdate.hpp"
 #include "MeshBasedCellPopulationWithGhostNodes.hpp"
+#include "CellBasedEventHandler.hpp"
 
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>	
 AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::AbstractNumericalMethod()
 :pCellPopulation(NULL),
- pForceCollection(NULL)
+ pForceCollection(NULL),
+ pAdaptive(NULL)
 {	
     /* pCellPopulation and pForceCollection are initialized by OffLatticeSimulation in
     its constructor. For now we set some safe defaults for the other member variables */
@@ -94,10 +96,20 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetForceCollection(std::vec
     }    
 };
 
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetAdaptive(bool* pAdaptiveInput){
+    if(pAdaptive==NULL){
+        pAdaptive=pAdaptiveInput;
+    }else{
+        EXCEPTION("The numerical method function SetAdaptive should only be called once by OffLatticeSimulation in its constructor");
+    }
+};
 
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::ComputeAndSaveForcesInclDamping(){
+
+    CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
 
     for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = pCellPopulation->rGetMesh().GetNodeIteratorBegin();
          node_iter != pCellPopulation->rGetMesh().GetNodeIteratorEnd(); ++node_iter)
@@ -130,6 +142,8 @@ std::vector<c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SP
         forcesAsVector.push_back(node_iter->rGetAppliedForce()/damping); 
     }
     
+    CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
+
     return forcesAsVector;
 };
 
@@ -165,8 +179,10 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::DetectStepSizeExceptions(un
     
     }catch(StepSizeException* e){
 
-        if(!(e->isTerminal)){
-            // If the step size exception is not serious, just produce a warning.
+        if(!(e->isTerminal) && *pAdaptive==false){
+            // If adaptivity is turned off but the simulation can continue, just produce a warning.
+            // Only the case for vertex based populations, which can alter node displacement directly 
+            // to avoid cell rearrangement problems.
             WARN_ONCE_ONLY(e->what());
         }else{
             throw e;

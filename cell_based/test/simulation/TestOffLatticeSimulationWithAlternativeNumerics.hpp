@@ -145,7 +145,7 @@ public:
             OffLatticeSimulation<3> simulator(cell_population, false, true, p_numerical_method);
             simulator.SetOutputDirectory(filename.c_str());
             simulator.SetDt(1.0/120.0);
-            simulator.SetSamplingTimestepMultiple(120);
+            simulator.SetSamplingTimestepMultiple(1);
             simulator.SetEndTime(0.05);
 
             // Add a force
@@ -157,17 +157,32 @@ public:
             TS_ASSERT_THROWS_NOTHING(simulator.Solve());
             CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Save(&simulator);
 
+
             // Reload the simulation and exceed the Absolute Movement Threshold
             OffLatticeSimulation<3>* p_new_simulator;
             p_new_simulator = CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Load(filename.c_str(), 0.05);
             
             AbstractCellPopulation<3,3>* p_population = &(p_new_simulator->rGetCellPopulation());
             dynamic_cast<AbstractOffLatticeCellPopulation<3,3>*>(p_population)->SetAbsoluteMovementThreshold(0.0001);
-            p_new_simulator->SetEndTime(0.1);
+            p_new_simulator->SetEndTime(0.06);
             
             CellBasedEventHandler::Reset();
             TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:");
             
+
+            // Finally, rerun the simulation with adaptivity and check that the step size error disappears
+            OffLatticeSimulation<3>* p_adaptive_simulator;
+            p_adaptive_simulator = CellBasedSimulationArchiver<3,OffLatticeSimulation<3> >::Load(filename.c_str(), 0.05);
+            p_adaptive_simulator->SetAdaptive(true);
+            TS_ASSERT(p_adaptive_simulator->IsAdaptive());
+            
+            AbstractCellPopulation<3,3>* p_new_population = &(p_adaptive_simulator->rGetCellPopulation());
+            dynamic_cast<AbstractOffLatticeCellPopulation<3,3>*>(p_new_population)->SetAbsoluteMovementThreshold(0.0001);
+            p_adaptive_simulator->SetEndTime(0.06);
+
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_NOTHING(p_adaptive_simulator->Solve());
+
             for (unsigned i=0; i<nodes.size();i++)
             {
                 delete nodes[i];
@@ -201,7 +216,7 @@ public:
             // Set up a simulation with the appropriate numerical method
             OffLatticeSimulation<2> simulator(cell_population, false, true, p_numerical_method);
             simulator.SetOutputDirectory(filename.c_str());
-            simulator.SetSamplingTimestepMultiple(500);
+            simulator.SetSamplingTimestepMultiple(1);
             simulator.SetDt(1.0/500.0);
             simulator.SetEndTime(0.05);
 
@@ -211,20 +226,34 @@ public:
             MAKE_PTR(SimpleTargetAreaModifier<2>, p_growth_modifier);
             simulator.AddSimulationModifier(p_growth_modifier);
 
-            // Run a simulation. Check that the appropriate step size warning is there (this one always seems to trigger???) 
+            // Run a simulation. Check that the appropriate step size warning is there
             CellBasedEventHandler::Reset();
             TS_ASSERT_THROWS_NOTHING(simulator.Solve());
             TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), 1u);
             TS_ASSERT_EQUALS(Warnings::Instance()->GetNextWarningMessage(), "Vertices are moving more than half the CellRearrangementThreshold. This could cause elements to become inverted so the motion has been restricted. Use a smaller timestep to avoid these warnings.");
             Warnings::QuietDestroy();
             
+
             // Test archiving
             CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
             OffLatticeSimulation<2>* p_new_simulator;
             p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load(filename.c_str(), 0.05);
-            p_new_simulator->SetEndTime(0.1);
+            p_new_simulator->SetEndTime(0.06);
             CellBasedEventHandler::Reset();
             TS_ASSERT_THROWS_NOTHING(p_new_simulator->Solve());
+            Warnings::QuietDestroy();
+
+
+            // Finally, test that the warnings go away when adaptivity is turned on
+            OffLatticeSimulation<2>* p_adaptive_simulator;
+            p_adaptive_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load(filename.c_str(),0.05);
+            p_adaptive_simulator->SetEndTime(0.06);
+            p_adaptive_simulator->SetAdaptive(true);
+            TS_ASSERT(p_adaptive_simulator->IsAdaptive());
+
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_NOTHING(p_adaptive_simulator->Solve());
+            TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), 0u);
             Warnings::QuietDestroy();
         }
     }
@@ -272,15 +301,30 @@ public:
             CellBasedEventHandler::Reset();
             TS_ASSERT_THROWS_NOTHING(simulator.Solve());
 
+
             // Test archiving and trigger an AbsoluteMovementThreshold error
             CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Save(&simulator);
             OffLatticeSimulation<2>* p_new_simulator;
             p_new_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load(filename.c_str(), 0.05);
             AbstractCellPopulation<2,2>* p_population = &(p_new_simulator->rGetCellPopulation());
             dynamic_cast<AbstractOffLatticeCellPopulation<2,2>*>(p_population)->SetAbsoluteMovementThreshold(0.001);
-            p_new_simulator->SetEndTime(0.1);
+            p_new_simulator->SetEndTime(0.06);
             CellBasedEventHandler::Reset();
             TS_ASSERT_THROWS_CONTAINS(p_new_simulator->Solve(), "which is more than the AbsoluteMovementThreshold:");
+       
+
+            // Finally, check that the error goes away when adaptivity is turned on
+            OffLatticeSimulation<2>* p_adaptive_simulator;
+            p_adaptive_simulator = CellBasedSimulationArchiver<2,OffLatticeSimulation<2> >::Load(filename.c_str(),0.05);
+            p_adaptive_simulator->SetEndTime(0.06);
+            p_adaptive_simulator->SetAdaptive(true);
+            TS_ASSERT(p_adaptive_simulator->IsAdaptive());
+
+            AbstractCellPopulation<2,2>* p_new_population = &(p_adaptive_simulator->rGetCellPopulation());
+            dynamic_cast<AbstractOffLatticeCellPopulation<2,2>*>(p_new_population)->SetAbsoluteMovementThreshold(0.001);
+
+            CellBasedEventHandler::Reset();
+            TS_ASSERT_THROWS_NOTHING(p_adaptive_simulator->Solve());
         }
     }
 

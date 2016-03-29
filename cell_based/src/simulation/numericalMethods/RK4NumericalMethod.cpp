@@ -34,7 +34,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "RK4NumericalMethod.hpp"
-#include "CellBasedEventHandler.hpp"
+
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>	
 RK4NumericalMethod<ELEMENT_DIM,SPACE_DIM> :: RK4NumericalMethod():
@@ -51,8 +51,6 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void RK4NumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(double dt){
 
     if(this->mNonEulerSteppersEnabled){
-
-      CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
 
       std::vector<c_vector<double, SPACE_DIM> > K1 = this->ComputeAndSaveForcesInclDamping();
 
@@ -111,8 +109,6 @@ void RK4NumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(double dt
         c_vector<double, SPACE_DIM> force = effectiveForce*damping;
         node_iter->AddAppliedForceContribution(force);
       }
-
-      CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
 
     }else{
 

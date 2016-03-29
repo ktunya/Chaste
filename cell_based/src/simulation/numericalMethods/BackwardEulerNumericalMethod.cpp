@@ -36,7 +36,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "BackwardEulerNumericalMethod.hpp"
 #include "ReplicatableVector.hpp"
 #include "PetscVecTools.hpp"
-#include "CellBasedEventHandler.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>	
 BackwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM> :: BackwardEulerNumericalMethod():
@@ -60,8 +59,6 @@ void BackwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions
     if(this->mNonEulerSteppersEnabled){
 
       solverDt = dt;
-
-      CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
 
       unsigned systemSize = this->pCellPopulation->GetNumNodes()*SPACE_DIM;
       std::vector< c_vector<double,SPACE_DIM> > initialLocations = this->SaveCurrentLocations();
@@ -111,7 +108,6 @@ void BackwardEulerNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions
       }
 
       PetscTools::Destroy(initialCondition);
-      CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
 
     }else{
 

@@ -36,7 +36,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AdamsMoultonNumericalMethod.hpp"
 #include "ReplicatableVector.hpp"
 #include "PetscVecTools.hpp"
-#include "CellBasedEventHandler.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>	
 AdamsMoultonNumericalMethod<ELEMENT_DIM,SPACE_DIM> :: AdamsMoultonNumericalMethod():
@@ -60,7 +59,6 @@ void AdamsMoultonNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(
     if(this->mNonEulerSteppersEnabled){
 
       solverDt = dt;
-      CellBasedEventHandler::BeginEvent(CellBasedEventHandler::FORCE);
 
       unsigned systemSize = this->pCellPopulation->GetNumNodes()*SPACE_DIM;
         
@@ -111,7 +109,6 @@ void AdamsMoultonNumericalMethod<ELEMENT_DIM,SPACE_DIM>::UpdateAllNodePositions(
       }
 
       PetscTools::Destroy(initialCondition);
-      CellBasedEventHandler::EndEvent(CellBasedEventHandler::FORCE);
 
     }else{
 

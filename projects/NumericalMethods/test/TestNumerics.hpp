@@ -244,7 +244,7 @@ public:
 		double ccLength = 6;
 		int nCellsPerSide = 2;
     	int nCells = nCellsPerSide*nCellsPerSide;
-
+        double dampingNormal = 1.1;
 
 		for(int power = stepPowerMin; power <= stepPowerMax; power++){
 
@@ -300,6 +300,7 @@ public:
         				cellPopulation = new NodeBasedCellPopulationWithParticles<3>(*pMesh, cells, realCellIndices);
         			}
 
+                    cellPopulation->SetDampingConstantNormal(dampingNormal);
         			simulation = new OffLatticeSimulation<3>(*cellPopulation, false, true, numericalMethod, isAdaptive);
 					simulation->SetOutputDirectory(filename.c_str());
         	    	simulation->SetDt(dt);
@@ -356,6 +357,7 @@ public:
   					    cellPopulation = new VertexBasedCellPopulation<2>(*(vGen->GetMesh()), cells);
 		    		}
      
+                    cellPopulation->SetDampingConstantNormal(dampingNormal);
 					simulation = new OffLatticeSimulation<2>(*cellPopulation, false, true, numericalMethod, isAdaptive);
 					simulation->SetOutputDirectory(filename.c_str());
         	    	simulation->SetDt(dt);

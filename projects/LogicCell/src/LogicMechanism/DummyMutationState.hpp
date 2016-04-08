@@ -33,47 +33,37 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "DifferentiateIfSignalAboveThresh.hpp"
-#include "Exception.hpp"
-#include "LogicTypes.hpp"
-#include "EnvironmentalSignalTypes.hpp"
-#include "LogicCell.hpp"
+#ifndef DUMMYMUTATIONSTATE_HPP
+#define DUMMYMUTATIONSTATE_HPP
 
-DifferentiateIfSignalAboveThresh::DifferentiateIfSignalAboveThresh(LogicCell* inputCell, int initialState):
-  AbstractCellLogic(inputCell, initialState){ 
-
-    thresholdLevel = DOUBLE_UNSET;
-};
+#include "AbstractCellMutationState.hpp"
+#include "ChasteSerialization.hpp"
+#include <boost/serialization/base_object.hpp>
 
 
-void DifferentiateIfSignalAboveThresh::SetThresh( double thresh ){
-   thresholdLevel = thresh;
-};
+class DummyMutationState : public AbstractCellMutationState {
 
+private:
 
-void DifferentiateIfSignalAboveThresh::Update(){
+    /** Needed for serialization. */
+    friend class boost::serialization::access;
 
-   if(thresholdLevel == DOUBLE_UNSET){
-      EXCEPTION("Please call SetThresh on DifferentiateIfSignalAboveThresh");
-   }
+    template<class Archive>
+    void serialize(Archive & archive, const unsigned int version)
+    {
+        archive & boost::serialization::base_object<AbstractCellMutationState>(*this);
+    }
 
-   double incomingSignal = owningCell->GetEnvironmentalSignal<DifferentiationDistanceSignal>();
+public:
 
-   if(incomingSignal > thresholdLevel){
-      state = Differentiation::D;
-   }
+    DummyMutationState();
 
-   DumpState();
-}
-
-
-
-AbstractCellLogic* DifferentiateIfSignalAboveThresh::Divide(LogicCell* daughterCell){
-
-   //Straight copy here, perfect heritability.
-   DifferentiateIfSignalAboveThresh* daughterLogic = new DifferentiateIfSignalAboveThresh(daughterCell, state);
-   daughterLogic->SetThresh(thresholdLevel);
-
-   return daughterLogic;
+    unsigned GetColour() const;
 
 };
+
+#include "SerializationExportWrapper.hpp"
+// Declare identifier for the serializer
+CHASTE_CLASS_EXPORT(DummyMutationState)
+
+#endif //DUMMYMUTATIONSTATE_HPP

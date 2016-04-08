@@ -36,21 +36,20 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cxxtest/TestSuite.h>
 #include "AbstractCellBasedTestSuite.hpp"
 #include "FakePetscSetup.hpp"
+#include "Warnings.hpp"
 
 #include "LogicCell.hpp"
 #include "AbstractCellLogic.hpp"
 #include "LogicTypes.hpp"
 #include "EnvironmentalSignalTypes.hpp"
 #include "CellActions.hpp"
+#include "DummyMutationState.hpp"
 
-#include "FixedDurationCellCycle.hpp"
+#include "FixedDurationTestCellCycle.hpp"
 #include "SimpleAssymmetricStemDivision.hpp"
-#include "DifferentiateIfSignalBelowThresh.hpp"
-#include "CellCycleWithDivisionMechanism.hpp"
+#include "DifferentiateIfSignalAboveThresh.hpp"
+#include "CellCycleTestWithDivisionMechanism.hpp"
 
-//TODO: Temporary use of this mutation state and cell cycle model. Write a dummy cell cycle model and
-//      mutation state instead that throw errors when data is accessed.
-#include "WildTypeCellMutationState.hpp"
 
 
 #ifndef TESTLOGICCELL_HPP
@@ -63,149 +62,155 @@ public:
 
     void TestInitialisation(){
 
-        MAKE_PTR(WildTypeCellMutationState, pDummyMut);
+        MAKE_PTR(DummyMutationState, pDummyMut);
         LogicCell* newCell = new LogicCell(pDummyMut);
 
-        FixedDurationCellCycle* cycleLogic = new FixedDurationCellCycle(newCell, CellCycle::G1, 0.0, 2.0);
-        newCell->setLogic<CellCycle>(cycleLogic);
+        FixedDurationTestCellCycle* cycleLogic = new FixedDurationTestCellCycle(newCell, CellCycle::G1, 0.0, 2.0);
+        newCell->SetLogic<CellCycle>(cycleLogic);
 
-        int state = newCell->getState<CellCycle>();
+        int state = newCell->GetState<CellCycle>();
         TS_ASSERT_EQUALS(state, CellCycle::G1);
 
         for(int i=0; i<5; i++){
-            newCell->update();
+            newCell->UpdateLogic();
         }
 
-        state = newCell->getState<CellCycle>();
+        state = newCell->GetState<CellCycle>();
         TS_ASSERT_EQUALS(state, CellCycle::G2);
 
         delete newCell;
     }
 
-
+    
     void TestSymmetricDivision(){
 
-        MAKE_PTR(WildTypeCellMutationState, pDummyMut);
+        MAKE_PTR(DummyMutationState, pDummyMut);
         LogicCell* parentCell = new LogicCell(pDummyMut);
 
-        FixedDurationCellCycle* cycleLogic = new FixedDurationCellCycle(parentCell, CellCycle::G1, 0.0, 2.0);
-        parentCell->setLogic<CellCycle>(cycleLogic);
+        FixedDurationTestCellCycle* cycleLogic = new FixedDurationTestCellCycle(parentCell, CellCycle::G1, 0.0, 2.0);
+        parentCell->SetLogic<CellCycle>(cycleLogic);
 
         LogicCell* daughterCell = parentCell->MakeNewCell();
 
-        TS_ASSERT_EQUALS(parentCell->getState<CellCycle>(), daughterCell->getState<CellCycle>());
+        TS_ASSERT_EQUALS(parentCell->GetState<CellCycle>(), daughterCell->GetState<CellCycle>());
 
         delete parentCell;
-        delete daughterCell;
+        delete daughterCell; 
     }
 
 
     void TestAssymmetricDivision(){
 
-        MAKE_PTR(WildTypeCellMutationState, pDummyMut);
+        MAKE_PTR(DummyMutationState, pDummyMut);
         LogicCell* parentCell = new LogicCell(pDummyMut);
 
-        FixedDurationCellCycle* cycleLogic = new FixedDurationCellCycle(parentCell, CellCycle::M, 0.0, 2.0);
-        parentCell->setLogic<CellCycle>(cycleLogic);
-        SimpleAssymmetricStemDivision* diffLogic = new SimpleAssymmetricStemDivision(parentCell, Differentiation::S);
-        parentCell->setLogic<Differentiation>(diffLogic);
+        FixedDurationTestCellCycle* cycleLogic = new FixedDurationTestCellCycle(parentCell, CellCycle::M, 0.0, 2.0);
+        parentCell->SetLogic<CellCycle>(cycleLogic);
+        SimpleAssymmetricStemDivision* diffLogic = new SimpleAssymmetricStemDivision(parentCell, Differentiation::S, 0);
+        parentCell->SetLogic<Differentiation>(diffLogic);
 
         LogicCell* daughterCell = parentCell->MakeNewCell();
 
-        TS_ASSERT_EQUALS(daughterCell->getState<Differentiation>(), Differentiation::TA);
+        TS_ASSERT_EQUALS(daughterCell->GetState<Differentiation>(), Differentiation::TA);
 
         delete parentCell;
-        delete daughterCell;
+        delete daughterCell; 
     }
 
 
     void TestInterModuleCommumication(){
 
-        MAKE_PTR(WildTypeCellMutationState, pDummyMut);
+        MAKE_PTR(DummyMutationState, pDummyMut);
         LogicCell* newCell = new LogicCell(pDummyMut);
 
-        FixedDurationCellCycle* cycleLogic = new FixedDurationCellCycle(newCell, CellCycle::M, 0.0, 2.0);
-        SimpleAssymmetricStemDivision* diffLogic = new SimpleAssymmetricStemDivision(newCell, Differentiation::S);
-        newCell->setLogic<CellCycle>(cycleLogic);
-        newCell->setLogic<Differentiation>(diffLogic);
+        FixedDurationTestCellCycle* cycleLogic = new FixedDurationTestCellCycle(newCell, CellCycle::M, 0.0, 2.0);
+        SimpleAssymmetricStemDivision* diffLogic = new SimpleAssymmetricStemDivision(newCell, Differentiation::S, 0);
+        newCell->SetLogic<CellCycle>(cycleLogic);
+        newCell->SetLogic<Differentiation>(diffLogic);
 
         for(int i=0; i<4; i++){
-            bool wasStem = false;
-            if(newCell->getState<Differentiation>() == Differentiation::S){
-                wasStem = true;
-            }
-            newCell->update();
-            if(newCell->getState<Differentiation>() == Differentiation::TA && wasStem){
-                TS_ASSERT_EQUALS(newCell->getState<CellCycle>(), CellCycle::G1);
+            
+            int oldState = newCell->GetState<Differentiation>();
+
+            newCell->UpdateLogic();
+            
+            int newState = newCell->GetState<Differentiation>(); 
+
+            if(newState == Differentiation::TA && oldState == Differentiation::S){
+                //i.e. differentiation occurs on entry into G1
+                TS_ASSERT_EQUALS(newCell->GetState<CellCycle>(), CellCycle::G1);
             }
         }
 
-        delete newCell;
+        delete newCell; 
     }
 
 
     void TestCellInboundMessages(){
 
-        MAKE_PTR(WildTypeCellMutationState, pDummyMut);
+        MAKE_PTR(DummyMutationState, pDummyMut);
         LogicCell* newCell = new LogicCell(pDummyMut);
 
-        DifferentiateIfSignalBelowThresh* diffLogic = new DifferentiateIfSignalBelowThresh(newCell, Differentiation::S);
-        diffLogic->setThresh(5);
+        DifferentiateIfSignalAboveThresh* diffLogic = new DifferentiateIfSignalAboveThresh(newCell, Differentiation::S);
+        diffLogic->SetThresh(5);
+        newCell->SetLogic<Differentiation>(diffLogic);
 
-        newCell->setLogic<Differentiation>(diffLogic);
-
-        float signalStrength = 10;
-        for(int i=0; i<52; i++) {
-            signalStrength -= 0.1;
-            newCell->sendEnvironmentalSignal<MyDiffusableSignal>(signalStrength);
-            newCell->update();
+        float signalStrength = 0;
+        for(int i=0; i<51; i++) {
+            signalStrength += 0.1;
+            newCell->SendEnvironmentalSignal<DifferentiationDistanceSignal>(signalStrength);
+            newCell->UpdateLogic();
         }
 
-        TS_ASSERT_EQUALS(newCell->getState<Differentiation>(), Differentiation::D);
+        TS_ASSERT_EQUALS(newCell->GetState<Differentiation>(), Differentiation::D);
 
-        delete newCell;
+        delete newCell; 
     }
 
 
     void TestCellOutboundMessages(){
 
-        MAKE_PTR(WildTypeCellMutationState, pDummyMut);
+        MAKE_PTR(DummyMutationState, pDummyMut);
         LogicCell* newCell = new LogicCell(pDummyMut);
 
-        CellCycleWithDivisionMechanism* cycleLogic = new CellCycleWithDivisionMechanism(newCell, CellCycle::G1, 0.0, 1.0);
-        newCell->setLogic<CellCycle>(cycleLogic);
+        CellCycleTestWithDivisionMechanism* cycleLogic = new CellCycleTestWithDivisionMechanism(newCell, CellCycle::G1, 0.0, 1.0);
+        newCell->SetLogic<CellCycle>(cycleLogic);
 
         for(int i=0; i<10; i++) {
-            newCell->update();
+            
+            newCell->UpdateLogic();
 
-            std::vector<int> queuedActions = newCell->getPendingActions();
+            std::vector<int> queuedActions = newCell->GetPendingActions();
 
-            if(newCell->getState<CellCycle>()==CellCycle::M){
+            if(newCell->GetState<CellCycle>() == CellCycle::M){
                 TS_ASSERT_EQUALS(queuedActions[0], CellActions::CallForDivision);
             }else{
                 TS_ASSERT_EQUALS(queuedActions.empty(), true);
             }
 
-            newCell->clearPendingActions();
+            newCell->ClearPendingActions();
         }
 
-        delete newCell;
+        delete newCell; 
     }
 
 
     void TestTriggerLogicReplacementWarning(){
 
-        MAKE_PTR(WildTypeCellMutationState, pDummyMut);
+        MAKE_PTR(DummyMutationState, pDummyMut);
         LogicCell* newCell = new LogicCell(pDummyMut);
 
-        FixedDurationCellCycle* cycleLogic = new FixedDurationCellCycle(newCell, CellCycle::M, 0.0, 2.0);
+        FixedDurationTestCellCycle* cycleLogic = new FixedDurationTestCellCycle(newCell, CellCycle::M, 0.0, 2.0);
 
-        newCell->setLogic<CellCycle>(cycleLogic);
-        newCell->setLogic<CellCycle>(cycleLogic);
+        newCell->SetLogic<CellCycle>(cycleLogic);
+        newCell->SetLogic<CellCycle>(cycleLogic);
 
-        delete newCell;
+        TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), 1u);
+        TS_ASSERT_EQUALS(Warnings::Instance()->GetNextWarningMessage(), "There cannot be two logics of type CellCycle. The original logic has been replaced.");
+        Warnings::QuietDestroy();
+        delete newCell; 
     }
-
+    
 };
 
 #endif //TESTLOGICCELL_HPP

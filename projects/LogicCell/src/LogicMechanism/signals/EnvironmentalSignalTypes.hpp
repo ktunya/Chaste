@@ -71,22 +71,8 @@ int BaseSignalType<T>::signalTypeId = -1; //Initialise ID of each signal type to
 #define CLASS_SIGNAL_TYPE(x) class x : public BaseSignalType<x>
 
 
-CLASS_SIGNAL_TYPE(MyDiffusableSignal){
+CLASS_SIGNAL_TYPE(DifferentiationDistanceSignal){
 
 };
-
-CLASS_SIGNAL_TYPE(MyDTCSignal){
-
-};
-
-CLASS_SIGNAL_TYPE(MyPositionSignal){
-
-};
-
-
-CLASS_SIGNAL_TYPE(NicheSignal){
-
-};
-
 
 #endif //ENVIRONMENTALSIGNALTYPES_HPP

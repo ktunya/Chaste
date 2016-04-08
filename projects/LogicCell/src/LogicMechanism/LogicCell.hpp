@@ -40,22 +40,32 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AbstractCellLogic.hpp"
 #include "PrintableNames.hpp"
 #include "LogicTypes.hpp"
+#include "Warnings.hpp"
 #include <vector>
 #include <string>
-#include <iostream>
 
 
 class LogicCell : public boost::enable_shared_from_this<LogicCell>, public Cell {
 
 private:
 
+    // Since LogicCells do not contain a Chaste Cell Cycle Model, the cell birth time
+    // must be stored in the cell, and setters and getters overriden to point to this variable
     double mBirthTime;
 
+    // A vector containing the cell's collection of logic modules. Each module deals with a 
+    // specific intracellular function, such as the cell cycle or differentiation 
     std::vector<AbstractCellLogic*> cellLogicModules;
+
+    // A vector containing inbound signals from the environment.
     std::vector<float> environmentalSignals;
+
+    // A vector containing pending actions, usually represented by enums. Currently the only
+    // cell action implemented is CallForDivision
     std::vector<int> pendingOutboundActions;
 
-    void setLogicById(int positionInVector, AbstractCellLogic* logic);
+    // Allows a daughter cell's vector of logic modules to be set safely. 
+    void SetLogicById(int positionInVector, AbstractCellLogic* logic);
 
 
     /** Needed for serialization. */
@@ -73,45 +83,64 @@ private:
 
 public:
 
+    // Essentially an "empty" constructor; only requires a pointer to a dummy mutation state to be provided,
+    // which is never referenced. Allows a daughter cell to be constructed without any internal logic, with
+    // logic then added later based on parent properties.
     LogicCell(boost::shared_ptr<AbstractCellProperty> pDummyMut, bool archiving=false, CellPropertyCollection prop = CellPropertyCollection() );
-
     virtual ~LogicCell();
 
-    void SetBirthTime(double birthTime);
 
-    double GetBirthTime() const;
+    // Overriden birth time setter and getter - refers to the member of this class rather than the cell
+    // cycle model. GetAge is overriden for a similar reason.
+    virtual void SetBirthTime(double birthTime);
+    virtual double GetBirthTime() const;
+    virtual double GetAge() const;
 
-    void InitialiseCellCycleModel();
-
-    double GetAge() const;
-
-
-    void SetCellCycleModel(AbstractCellCycleModel* pCellCycleModel);
-
-    void SetMutationState(boost::shared_ptr<AbstractCellProperty> pMutationState);
+    // More functions that are overriden because they're irrelevant for this type of cell. 
+    // Some of these now produce a warning to the effect that LogicCells do not use a mutation state
+    // or a Chaste Cell Cycle Model 
+    virtual void InitialiseCellCycleModel();
+    virtual void SetCellCycleModel(AbstractCellCycleModel* pCellCycleModel);
+    virtual void SetMutationState(boost::shared_ptr<AbstractCellProperty> pMutationState);
 
     //----------------------------------------------------------------------------
     //----------------------------------------------------------------------------
     //----------------------------------------------------------------------------
 
-    bool ReadyToDivide();
+    // Overriden ReadyToDivide. Doesn't call UpdateCellCyclePhase, but does call UpdateLogic.
+    virtual bool ReadyToDivide();
+    
+    // Overriden Divide. It now calls divide on each of the parent cell's logic modules and passes
+    // the results to the daughter. 
+    virtual CellPtr Divide();
 
-    CellPtr Divide();
-
+    // Called by Divide. As well as doing the usual cell division steps, it calls divide on each of
+    // the parent's logic modules, and gives the dughter logic to the daughter cell.
     LogicCell* MakeNewCell();
 
+    // Calls update on each logic module 
     void UpdateLogic();
 
-    void dumpStates();
-
+    // Returns the vector of pending cell actions
     std::vector<int> GetPendingActions();
+
+    // For now, this just detects whether the actions vector contains CellActions::CallForDivision
+    // If so, mCanDivide is set to true, triggering a cell division 
     void ProcessPendingActions();
+    
+    // Clears the pending actions vector
     void ClearPendingActions();
+
+    // Adds a pending action; the action code will be an enum for readability
     void SetPendingAction(int actionCode);
 
-
+    // Sets the logic of type LOGIC_TYPE.
+    // Presently, LOGIC_TYPE can take the values CellCycle, Differentiation and Growth
+    // If a logic of the same type is set twice in a simulation, a warning is produced.
+    // Example usage: pCell->SetLogic<CellCycle>(pStochasticCycle)
+    //                pCell->SetLogic<Growth>(pLinearGrowthUpToMaxRadius)
     template<typename LOGIC_TYPE>
-    void setLogic(AbstractCellLogic* newLogic)
+    void SetLogic(AbstractCellLogic* newLogic)
     {
         int logicTypeId = LOGIC_TYPE::id();
 
@@ -122,16 +151,18 @@ public:
 
         if (cellLogicModules[logicTypeId] != NULL)
         {
-            std::cout << "WARNING: there cannot be two logics of type " << PRINTABLE_NAME(LOGIC_TYPE) <<
-            ". The original logic has been replaced." << std::endl;
+            WARNING("There cannot be two logics of type " << PRINTABLE_NAME(LOGIC_TYPE) <<". The original logic has been replaced.");
         }
 
-        newLogic->setCategory(PRINTABLE_NAME(LOGIC_TYPE));
+        newLogic->SetCategory(PRINTABLE_NAME(LOGIC_TYPE));
         cellLogicModules[logicTypeId] = newLogic;
     }
 
+    // Gets the state of a particular logic module. For example:
+    // pCell->GetState<CellCycle>()
+    // returns the current cell cycle phase 
     template<typename LOGIC_TYPE>
-    int getState()
+    int GetState()
     {
         int logicTypeId = LOGIC_TYPE::id();
         AbstractCellLogic* selectedLogicModule;
@@ -142,16 +173,19 @@ public:
         }
         else
         {
-            throw std::invalid_argument(std::string("This cell has no logic of type ") + PRINTABLE_NAME(LOGIC_TYPE));
+            EXCEPTION("This cell has no logic of type "<<PRINTABLE_NAME(LOGIC_TYPE));
         }
 
-        int state = selectedLogicModule->getState();
+        int state = selectedLogicModule->GetState();
         return state;
     }
 
-
+    // Sends an environmental signal to this cell. For example: 
+    // pCell->SendEnvironmentalSignal<DistalTipCellSignal>(5.0)
+    // would send a signal from the DistalTipCell with strength 5.0.
+    // Signal types are declared in EnvironmentalSignalTypes.(h/c)pp 
     template<typename SIGNAL_TYPE>
-    void sendEnvironmentalSignal(float inboundSignal){
+    void SendEnvironmentalSignal(float inboundSignal){
 
         int signalTypeId = SIGNAL_TYPE::id();
 
@@ -163,9 +197,11 @@ public:
         environmentalSignals[signalTypeId] = inboundSignal;
     }
 
-
+    // Gets the current value of a particular environmental signal. For example:
+    // pCell->GetEnvironmentalSignal<DistalTipCellSignal>()
+    // would return the current strength of the Distal Tip Cell signal.
     template<typename SIGNAL_TYPE>
-    float getEnvironmentalSignal(){
+    float GetEnvironmentalSignal(){
 
         int signalTypeId = SIGNAL_TYPE::id();
 
@@ -173,12 +209,9 @@ public:
             return environmentalSignals[signalTypeId];
         }
 
-        std::cout << "WARNING: There is no environmental signal of type " << PRINTABLE_NAME(SIGNAL_TYPE) <<
-        ". Returning a default signal value of 0." << std::endl;
+        WARNING("There is no environmental signal of type "<< PRINTABLE_NAME(SIGNAL_TYPE)<<". Returning a default signal value of 0.");
         return 0;
     }
-
-
 };
 
 #endif /*LOGICCELL_HPP_*/

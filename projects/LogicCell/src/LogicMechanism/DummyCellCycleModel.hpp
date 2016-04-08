@@ -33,47 +33,110 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "DifferentiateIfSignalAboveThresh.hpp"
-#include "Exception.hpp"
-#include "LogicTypes.hpp"
-#include "EnvironmentalSignalTypes.hpp"
-#include "LogicCell.hpp"
+#ifndef DUMMYCELLCYCLEMODEL_HPP
+#define DUMMYCELLCYCLEMODEL_HPP
 
-DifferentiateIfSignalAboveThresh::DifferentiateIfSignalAboveThresh(LogicCell* inputCell, int initialState):
-  AbstractCellLogic(inputCell, initialState){ 
 
-    thresholdLevel = DOUBLE_UNSET;
+#include "AbstractCellCycleModel.hpp"
+
+
+class DummyCellCycleModel: public AbstractCellCycleModel {
+
+
+public:
+
+
+   DummyCellCycleModel();
+
+
+   ~DummyCellCycleModel();
+
+
+   void Initialise();
+
+
+   void InitialiseDaughterCell();
+
+
+   void SetBirthTime(double birthTime);
+
+
+   double GetBirthTime() const;
+
+
+   double GetAge();
+
+
+   bool ReadyToDivide();
+
+
+   void UpdateCellCyclePhase();
+
+
+   AbstractCellCycleModel* CreateCellCycleModel();
+
+
+   void ResetForDivision();
+
+
+   CellCyclePhase GetCurrentCellCyclePhase();
+
+
+   double GetG1Duration();
+
+
+   double GetStemCellG1Duration();
+
+
+   double GetTransitCellG1Duration();
+
+
+   double GetSG2MDuration();
+
+
+   double GetSDuration();
+
+
+   double GetG2Duration();
+
+
+   double GetMDuration();
+
+
+   void SetStemCellG1Duration(double stemCellG1Duration);
+
+
+   void SetTransitCellG1Duration(double transitCellG1Duration);
+
+
+   void SetSDuration(double sDuration);
+
+
+   void SetG2Duration(double g2Duration);
+
+
+   void SetMDuration(double mDuration);
+
+
+   double GetAverageTransitCellCycleTime();
+
+
+   double GetAverageStemCellCycleTime();
+
+
+   bool CanCellTerminallyDifferentiate();
+
+
+   double GetMinimumGapDuration();
+
+
+   void SetMinimumGapDuration(double minimumGapDuration);
+
+
+   void OutputCellCycleModelParameters(out_stream& rParamsFile);
 };
 
+#include "SerializationExportWrapper.hpp"
+CHASTE_CLASS_EXPORT(DummyCellCycleModel)
 
-void DifferentiateIfSignalAboveThresh::SetThresh( double thresh ){
-   thresholdLevel = thresh;
-};
-
-
-void DifferentiateIfSignalAboveThresh::Update(){
-
-   if(thresholdLevel == DOUBLE_UNSET){
-      EXCEPTION("Please call SetThresh on DifferentiateIfSignalAboveThresh");
-   }
-
-   double incomingSignal = owningCell->GetEnvironmentalSignal<DifferentiationDistanceSignal>();
-
-   if(incomingSignal > thresholdLevel){
-      state = Differentiation::D;
-   }
-
-   DumpState();
-}
-
-
-
-AbstractCellLogic* DifferentiateIfSignalAboveThresh::Divide(LogicCell* daughterCell){
-
-   //Straight copy here, perfect heritability.
-   DifferentiateIfSignalAboveThresh* daughterLogic = new DifferentiateIfSignalAboveThresh(daughterCell, state);
-   daughterLogic->SetThresh(thresholdLevel);
-
-   return daughterLogic;
-
-};
+#endif //DUMMYCELLCYCLEMODEL_HPP

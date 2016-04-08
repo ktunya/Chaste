@@ -44,29 +44,43 @@ class AbstractCellLogic{
 
 protected:
 
+    // Current state of this logic. Often an enum for readability. 
+    // E.g. the state of a CellCycle logic could be CellCycle::G1 (i.e. 0)
     int state;
 
+    // A descriptive name for this type of logic module. Will be used whenever
+    // data is output for visualisation. So for example, in Paraview there'll be
+    // a property called "category" associated with each cell containing the state info.
     std::string category;
 
+    // Pointer to the cell that contains this logic module.
     LogicCell* owningCell;
 
 public:
 
+    // Constructor. Takes a pointer to the owning cell, and an int indicating the 
+    // starting state.
     AbstractCellLogic(LogicCell* inputCell, int initialState);
-
     virtual ~AbstractCellLogic();
 
-    virtual void update() = 0;
+    // Pure virtual method. Tells the logic how to update each timestep.
+    virtual void Update() = 0;
 
-    virtual AbstractCellLogic* divide(LogicCell* owningCell) = 0;
+    // Produces a daughter logic module, with its starting state determined by that of the
+    // parent.
+    virtual AbstractCellLogic* Divide(LogicCell* owningCell) = 0;
 
-    int getState();
+    // Returns the current state of the logic module
+    int GetState();
 
-    void setCategory(std::string inputString);
+    // Sets the descriptive name for this type of logic module (std::string category)
+    void SetCategory(std::string inputString);
 
-    std::string getCategory();
+    // Gets the descriptive name for this type of logic module (std::string category)
+    std::string GetCategory();
 
-    virtual void dumpState()=0;
+    // Outputs data for visualisation.
+    virtual void DumpState();
 
 };
 

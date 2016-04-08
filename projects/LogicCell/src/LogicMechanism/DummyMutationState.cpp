@@ -33,52 +33,19 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "CellCycleWithDivisionMechanism.hpp"
-#include "CellActions.hpp"
+#include "DummyMutationState.hpp"
 
-CellCycleWithDivisionMechanism::CellCycleWithDivisionMechanism(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration):
-        AbstractCellLogic(inputCell, initialState),
-        timeInPhase(initialTimeInPhase),
-        phaseDuration(phaseDuration){
-}
+DummyMutationState::DummyMutationState()
+        : AbstractCellMutationState(0)
+{}
 
 
-void CellCycleWithDivisionMechanism::update(){
-
-   timeInPhase += SimulationTime::Instance()->GetTimeStep();
-
-   //if(owningCell->getState<Differentiation>() == Differentiation::D){
-   //   state = CellCycle::G0;
-   //}else {
-
-      int oldState = state;
-
-      if (timeInPhase >= phaseDuration) {
-         timeInPhase = 0.0;
-         state++;
-         state = state % 4;
-      }
-
-      if (state == CellCycle::M && oldState == CellCycle::G2) {
-         owningCell->SetPendingAction(CellActions::CallForDivision);
-      }
-   //}
-
-   dumpState();
-}
-
-AbstractCellLogic* CellCycleWithDivisionMechanism::divide(LogicCell* daughterCell){
-
-   AbstractCellLogic* daughterLogic =  new CellCycleWithDivisionMechanism(daughterCell, state, timeInPhase, phaseDuration);
-
-   dumpState();
-   daughterLogic->dumpState();
-
-   return daughterLogic;
-}
+unsigned DummyMutationState::GetColour() const{
+   //std::cout << "WARNING: Logic Cells do not use mutation states. Refer instead to the Differentiation Logic Module" << std::endl;
+   return AbstractCellMutationState::GetColour();
+};
 
 
-void CellCycleWithDivisionMechanism::dumpState(){
-
-   owningCell->GetCellData()->SetItem(category, state);
-}
+#include "SerializationExportWrapperForCpp.hpp"
+// Declare identifier for the serializer
+CHASTE_CLASS_EXPORT(DummyMutationState)

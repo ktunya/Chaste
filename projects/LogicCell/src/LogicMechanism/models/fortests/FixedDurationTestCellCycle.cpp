@@ -33,47 +33,30 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "DifferentiateIfSignalAboveThresh.hpp"
-#include "Exception.hpp"
-#include "LogicTypes.hpp"
-#include "EnvironmentalSignalTypes.hpp"
-#include "LogicCell.hpp"
+#include <iostream>
+#include "FixedDurationTestCellCycle.hpp"
 
-DifferentiateIfSignalAboveThresh::DifferentiateIfSignalAboveThresh(LogicCell* inputCell, int initialState):
-  AbstractCellLogic(inputCell, initialState){ 
-
-    thresholdLevel = DOUBLE_UNSET;
-};
-
-
-void DifferentiateIfSignalAboveThresh::SetThresh( double thresh ){
-   thresholdLevel = thresh;
-};
-
-
-void DifferentiateIfSignalAboveThresh::Update(){
-
-   if(thresholdLevel == DOUBLE_UNSET){
-      EXCEPTION("Please call SetThresh on DifferentiateIfSignalAboveThresh");
-   }
-
-   double incomingSignal = owningCell->GetEnvironmentalSignal<DifferentiationDistanceSignal>();
-
-   if(incomingSignal > thresholdLevel){
-      state = Differentiation::D;
-   }
-
-   DumpState();
+FixedDurationTestCellCycle::FixedDurationTestCellCycle(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration):
+        AbstractCellLogic(inputCell, initialState),
+        timeInPhase(initialTimeInPhase),
+        phaseDuration(phaseDuration){
 }
 
 
+void FixedDurationTestCellCycle::Update(){
 
-AbstractCellLogic* DifferentiateIfSignalAboveThresh::Divide(LogicCell* daughterCell){
+    timeInPhase++;
 
-   //Straight copy here, perfect heritability.
-   DifferentiateIfSignalAboveThresh* daughterLogic = new DifferentiateIfSignalAboveThresh(daughterCell, state);
-   daughterLogic->SetThresh(thresholdLevel);
+    if(timeInPhase >= phaseDuration){
+       timeInPhase = 0.0;
+       state++;
+       state = state % 4;
+    }
+}
 
-   return daughterLogic;
+AbstractCellLogic* FixedDurationTestCellCycle::Divide(LogicCell* daughterCell){
 
-};
+    AbstractCellLogic* daughterLogic =  new FixedDurationTestCellCycle(daughterCell, state, timeInPhase, phaseDuration);
+
+    return daughterLogic;
+}

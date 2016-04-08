@@ -33,12 +33,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifndef FIXEDDURATIONCELLCYCLE_H
-#define FIXEDDURATIONCELLCYCLE_H
+#ifndef FIXEDDURATIONTESTCELLCYCLE_H
+#define FIXEDDURATIONTESTCELLCYCLE_H
 
 #include "AbstractCellLogic.hpp"
 
-class FixedDurationCellCycle : public AbstractCellLogic{
+class FixedDurationTestCellCycle : public AbstractCellLogic{
 
 private:
 
@@ -47,12 +47,12 @@ private:
 
 public:
 
-    FixedDurationCellCycle(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration);
+    FixedDurationTestCellCycle(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration);
 
-    void update();
+    void Update();
 
-    AbstractCellLogic* divide(LogicCell* daughterCell);
+    AbstractCellLogic* Divide(LogicCell* daughterCell);
 
 };
 
-#endif //FIXEDDURATIONCELLCYCLE_H
+#endif //FIXEDDURATIONTESTCELLCYCLE_H

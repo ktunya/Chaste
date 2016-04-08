@@ -48,13 +48,11 @@ public:
 
    DifferentiateIfSignalAboveThresh(LogicCell* inputCell, int initialState);
 
-   void setThreshSignal( double thresh );
+   void SetThresh( double thresh );
 
-   void update();
+   void Update();
 
-   AbstractCellLogic* divide(LogicCell* daughterCell);
-
-   void dumpState();
+   AbstractCellLogic* Divide(LogicCell* daughterCell);
 
 };
 

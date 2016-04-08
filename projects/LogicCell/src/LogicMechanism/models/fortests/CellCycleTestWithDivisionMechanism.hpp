@@ -33,13 +33,13 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifndef CELLCYCLEWITHDIVISIONMECHANISM_H
-#define CELLCYCLEWITHDIVISIONMECHANISM_H
+#ifndef CELLCYCLETESTWITHDIVISIONMECHANISM_H
+#define CELLCYCLETESTWITHDIVISIONMECHANISM_H
 
 #include "AbstractCellLogic.hpp"
 #include "LogicCell.hpp"
 
-class CellCycleWithDivisionMechanism : public AbstractCellLogic{
+class CellCycleTestWithDivisionMechanism : public AbstractCellLogic{
 
 private:
 
@@ -48,14 +48,12 @@ private:
 
 public:
 
-    CellCycleWithDivisionMechanism(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration);
+    CellCycleTestWithDivisionMechanism(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration);
 
-    void update();
+    void Update();
 
-    AbstractCellLogic* divide(LogicCell* daughterCell);
-
-    void dumpState();
+    AbstractCellLogic* Divide(LogicCell* daughterCell);
 
 };
 
-#endif //CELLCYCLEWITHDIVISIONMECHANISM_H
+#endif //CELLCYCLETESTWITHDIVISIONMECHANISM_H

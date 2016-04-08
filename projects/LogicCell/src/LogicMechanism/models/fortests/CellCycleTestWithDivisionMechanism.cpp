@@ -33,30 +33,41 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include <iostream>
-#include "FixedDurationCellCycle.hpp"
+#include "CellCycleTestWithDivisionMechanism.hpp"
+#include "CellActions.hpp"
 
-FixedDurationCellCycle::FixedDurationCellCycle(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration):
+CellCycleTestWithDivisionMechanism::CellCycleTestWithDivisionMechanism(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration):
         AbstractCellLogic(inputCell, initialState),
         timeInPhase(initialTimeInPhase),
         phaseDuration(phaseDuration){
 }
 
 
-void FixedDurationCellCycle::update(){
+void CellCycleTestWithDivisionMechanism::Update(){
 
-    timeInPhase++;
+    timeInPhase ++;
+    
+    int oldState = state;
 
-    if(timeInPhase >= phaseDuration){
+    if (timeInPhase >= phaseDuration) {
        timeInPhase = 0.0;
        state++;
        state = state % 4;
     }
+
+    if (state == CellCycle::M && oldState == CellCycle::G2) {
+       owningCell->SetPendingAction(CellActions::CallForDivision);
+    }
+
+    DumpState();
 }
 
-AbstractCellLogic* FixedDurationCellCycle::divide(LogicCell* daughterCell){
+AbstractCellLogic* CellCycleTestWithDivisionMechanism::Divide(LogicCell* daughterCell){
 
-    AbstractCellLogic* daughterLogic =  new FixedDurationCellCycle(daughterCell, state, timeInPhase, phaseDuration);
+   AbstractCellLogic* daughterLogic =  new CellCycleTestWithDivisionMechanism(daughterCell, state, timeInPhase, phaseDuration);
 
-    return daughterLogic;
+   DumpState();
+   daughterLogic->DumpState();
+
+   return daughterLogic;
 }

@@ -43,18 +43,20 @@ AbstractCellLogic::AbstractCellLogic(LogicCell* inputCell, int initialState):
 {
 }
 
-
 AbstractCellLogic::~AbstractCellLogic(){};
 
-
-int AbstractCellLogic::getState(){
+int AbstractCellLogic::GetState(){
     return state;
 };
 
-void AbstractCellLogic::setCategory(std::string inputString){
+void AbstractCellLogic::SetCategory(std::string inputString){
      category = inputString;
 };
 
-std::string AbstractCellLogic::getCategory(){
+std::string AbstractCellLogic::GetCategory(){
     return category;
+}
+
+void AbstractCellLogic::DumpState(){
+    owningCell->GetCellData()->SetItem(category.c_str(), state);
 }

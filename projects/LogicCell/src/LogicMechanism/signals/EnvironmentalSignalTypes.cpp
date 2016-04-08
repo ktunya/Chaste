@@ -38,7 +38,4 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 int AllBaseSignalTypes::numberOfSignalTypesInUse = 0;
 
-WITH_PRINTABLE_NAME(MyDiffusableSignal);
-WITH_PRINTABLE_NAME(MyPositionSignal);
-WITH_PRINTABLE_NAME(NicheSignal);
-WITH_PRINTABLE_NAME(MyDTCSignal);
+WITH_PRINTABLE_NAME(DifferentiationDistanceSignal);

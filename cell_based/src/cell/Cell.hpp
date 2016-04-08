@@ -78,9 +78,6 @@ class Cell : private boost::noncopyable, public boost::enable_shared_from_this<C
 {
 private:
 
-    /** Caches the result of ReadyToDivide() so Divide() can look at it. */
-    bool mCanDivide;
-
     /** Needed for serialization. */
     friend class boost::serialization::access;
     /**
@@ -105,6 +102,9 @@ private:
     }
 
 protected:
+
+    /** Caches the result of ReadyToDivide() so Divide() can look at it. */
+    bool mCanDivide;
 
     /** The cell's property collection. */
     CellPropertyCollection mCellPropertyCollection;
@@ -178,14 +178,14 @@ public:
      *
      * @param birthTime  The time the cell was born (in hours)
      */
-    void SetBirthTime(double birthTime);
+    virtual void SetBirthTime(double birthTime);
 
     /**
      * Change the cell-cycle model used. This takes effect immediately.
      *
      * @param pCellCycleModel pointer to the cell-cycle model to use
      */
-    void SetCellCycleModel(AbstractCellCycleModel* pCellCycleModel);
+    virtual void SetCellCycleModel(AbstractCellCycleModel* pCellCycleModel);
 
     /**
      * @return a pointer to the Cell's cell-cycle model.
@@ -195,7 +195,7 @@ public:
     /**
      * Calls Initialise on the cell-cycle model associated with this cell.
      */
-    void InitialiseCellCycleModel();
+    virtual void InitialiseCellCycleModel();
 
     /**
      * Change the SRN model used. This takes effect immediately.
@@ -217,12 +217,12 @@ public:
     /**
      * @return the cell's age from its cell-cycle model.
      */
-    double GetAge() const;
+    virtual double GetAge() const;
 
     /**
      * @return the cell's birth time from its cell-cycle model.
      */
-    double GetBirthTime() const;
+    virtual double GetBirthTime() const;
 
     /**
      * @return the time at which apoptosis was commanded to start.
@@ -272,7 +272,7 @@ public:
      *
      * @param pMutationState the cell's new mutation state
      */
-    void SetMutationState(boost::shared_ptr<AbstractCellProperty> pMutationState);
+    virtual void SetMutationState(boost::shared_ptr<AbstractCellProperty> pMutationState);
 
     /**
      * @return reference to #mCellPropertyCollection.
@@ -338,7 +338,7 @@ public:
      * @return whether this cell is ready to divide at the present simulation time.
      * MUST be called before calling Divide().
      */
-    bool ReadyToDivide();
+    virtual bool ReadyToDivide();
 
     /**
      * Divide this cell to produce a daughter cell.
@@ -346,7 +346,7 @@ public:
      *
      * @return the new daughter cell
      */
-    CellPtr Divide();
+    virtual CellPtr Divide();
 
     /**
      * Make the cell enter apoptosis and sets #mDeathTime using the apoptosis

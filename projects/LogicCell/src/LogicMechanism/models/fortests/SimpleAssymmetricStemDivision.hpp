@@ -49,11 +49,9 @@ public:
 
    SimpleAssymmetricStemDivision(LogicCell* inputCell, int initialState, int initialTADivisions);
 
-   void update();
+   void Update();
 
-   AbstractCellLogic* divide(LogicCell* daughterCell);
-
-   void dumpState();
+   AbstractCellLogic* Divide(LogicCell* daughterCell);
 
 };
 

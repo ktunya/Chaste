@@ -33,47 +33,18 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "DifferentiateIfSignalAboveThresh.hpp"
-#include "Exception.hpp"
-#include "LogicTypes.hpp"
-#include "EnvironmentalSignalTypes.hpp"
-#include "LogicCell.hpp"
+#ifndef PRINTABLENAMES_HPP
+#define PRINTABLENAMES_HPP
 
-DifferentiateIfSignalAboveThresh::DifferentiateIfSignalAboveThresh(LogicCell* inputCell, int initialState):
-  AbstractCellLogic(inputCell, initialState){ 
+#include <string>
 
-    thresholdLevel = DOUBLE_UNSET;
+template <typename T>
+struct _printable_name
+{
+    static std::string name;
 };
 
+#define WITH_PRINTABLE_NAME(T) template <> std::string _printable_name<T>::name = #T
+#define PRINTABLE_NAME(T) _printable_name<T>::name
 
-void DifferentiateIfSignalAboveThresh::SetThresh( double thresh ){
-   thresholdLevel = thresh;
-};
-
-
-void DifferentiateIfSignalAboveThresh::Update(){
-
-   if(thresholdLevel == DOUBLE_UNSET){
-      EXCEPTION("Please call SetThresh on DifferentiateIfSignalAboveThresh");
-   }
-
-   double incomingSignal = owningCell->GetEnvironmentalSignal<DifferentiationDistanceSignal>();
-
-   if(incomingSignal > thresholdLevel){
-      state = Differentiation::D;
-   }
-
-   DumpState();
-}
-
-
-
-AbstractCellLogic* DifferentiateIfSignalAboveThresh::Divide(LogicCell* daughterCell){
-
-   //Straight copy here, perfect heritability.
-   DifferentiateIfSignalAboveThresh* daughterLogic = new DifferentiateIfSignalAboveThresh(daughterCell, state);
-   daughterLogic->SetThresh(thresholdLevel);
-
-   return daughterLogic;
-
-};
+#endif //PRINTABLENAMES_HPP

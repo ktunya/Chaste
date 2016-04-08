@@ -42,7 +42,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 LogicCell::LogicCell(boost::shared_ptr<AbstractCellProperty> pDummyMut, bool archiving, CellPropertyCollection prop):
-        Cell( pDummyMut, new DummyCellCycleModel(), archiving, prop)
+        Cell( pDummyMut, new DummyCellCycleModel(), NULL, archiving, prop)
 {
 };
 
@@ -57,11 +57,11 @@ LogicCell::~LogicCell(){
 
 
 void LogicCell::SetCellCycleModel(AbstractCellCycleModel* pCellCycleModel){
-   std::cout << "SetCellCycleModel is not allowed; LogicCells always have a DummyCellCycleModel" << std::endl;
+   EXCEPTION("SetCellCycleModel is not permitted; LogicCells always have a DummyCellCycleModel");
 };
 
 void LogicCell::SetMutationState(boost::shared_ptr<AbstractCellProperty> pMutationState){
-   std::cout << "SetMutationState is not allowed; LogicCells always have a DummyMutationState" << std::endl;
+   EXCEPTION("SetMutationState is not permitted; LogicCells always have a DummyMutationState");
 };
 
 void LogicCell::SetBirthTime(double birthTime){
@@ -89,6 +89,7 @@ bool LogicCell::ReadyToDivide(){
       return false;
    }
 
+   UpdateLogic();
    return mCanDivide;
 };
 
@@ -122,10 +123,10 @@ LogicCell* LogicCell::MakeNewCell(){
 
    for(int i = 0; i < (int) cellLogicModules.size(); i++){
       if(cellLogicModules[i] != NULL) {
-         AbstractCellLogic *daughterLogic = cellLogicModules[i]->divide(daughterCell);
-         daughterLogic->setCategory(cellLogicModules[i]->getCategory());
-         daughterLogic->dumpState();
-         daughterCell->setLogicById(i,daughterLogic);
+         AbstractCellLogic *daughterLogic = cellLogicModules[i]->Divide(daughterCell);
+         daughterLogic->SetCategory(cellLogicModules[i]->GetCategory());
+         daughterLogic->DumpState();
+         daughterCell->SetLogicById(i,daughterLogic);
       }
    }
 
@@ -141,7 +142,7 @@ void LogicCell::UpdateLogic() {
    for (int i = 0; i < (int) cellLogicModules.size(); i++) {
 
       if (cellLogicModules[i] != NULL) {
-         cellLogicModules[i]->update();
+         cellLogicModules[i]->Update();
       }
    }
 
@@ -177,6 +178,6 @@ void LogicCell::SetPendingAction(int actionCode){
 }
 
 
-void LogicCell::setLogicById(int positionInVector, AbstractCellLogic* newlogic){
+void LogicCell::SetLogicById(int positionInVector, AbstractCellLogic* newlogic){
    cellLogicModules[positionInVector] = newlogic;
 };

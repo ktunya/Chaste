@@ -45,64 +45,47 @@ SimpleAssymmetricStemDivision::SimpleAssymmetricStemDivision(LogicCell* inputCel
         AbstractCellLogic(inputCell, initialState),
         nTADivisions(initialTADivisions)
 {
-
 }
 
 
-void SimpleAssymmetricStemDivision::update(){
+void SimpleAssymmetricStemDivision::Update(){
 
    if(state == Differentiation::D){
       return;
    }
 
-
-   if(nTADivisions > 2 && owningCell->getState<CellCycle>() == CellCycle::G1){
+   if(nTADivisions > 2 && owningCell->GetState<CellCycle>() == CellCycle::G1){
 
       state = Differentiation::D;
 
-   }else{
-
-      double nicheSignal = owningCell->getEnvironmentalSignal<NicheSignal>();
-      //owningCell->GetCellData()->SetItem("NicheSignal", nicheSignal);
-      std::cout << "NicheSignal: " << nicheSignal << std::endl;
-
-      if(nicheSignal > 5){
-         state = Differentiation::TA;
-      }
-
    }
 
-   dumpState();
+   DumpState();
 }
 
 
-AbstractCellLogic* SimpleAssymmetricStemDivision::divide(LogicCell* daughterCell){
-
+AbstractCellLogic* SimpleAssymmetricStemDivision::Divide(LogicCell* daughterCell){
 
    if(state == Differentiation::S){
 
       AbstractCellLogic* daughterLogic =  new SimpleAssymmetricStemDivision(daughterCell, Differentiation::TA, 0);
-      dumpState();
+      DumpState();
+      daughterLogic->DumpState();
       return daughterLogic;
 
    }else if(state == Differentiation::TA) {
 
       AbstractCellLogic* daughterLogic =  new SimpleAssymmetricStemDivision(daughterCell, Differentiation::TA, nTADivisions+1);
-      nTADivisions = nTADivisions+1;
-      dumpState();
+      nTADivisions++;
+      DumpState();
+      daughterLogic->DumpState();
       return daughterLogic;
 
    }else if(state == Differentiation::D){
+      
       EXCEPTION("Differentiated cells cannot divide");
    }
 
    EXCEPTION("Invalid state in SimpleAssymmetricStemDivision");
    return NULL;
 }
-
-
-void SimpleAssymmetricStemDivision::dumpState(){
-   owningCell->GetCellData()->SetItem(category, state);
-}
-
-

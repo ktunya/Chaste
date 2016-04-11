@@ -56,11 +56,9 @@ void NullSrnModel::SimulateToCurrentTime()
 }
 
 
-AbstractSrnModel* NullSrnModel::CreateSrnModel()
+NullSrnModel::NullSrnModel(const NullSrnModel& rModel)
+    : AbstractSrnModel(rModel)
 {
-    // Create a new srn model
-    NullSrnModel* p_model = new NullSrnModel();
-
     /*
      * Set each member variable of the new SRN model that inherits
      * its value from the parent.
@@ -71,9 +69,17 @@ AbstractSrnModel* NullSrnModel::CreateSrnModel()
      * Note 2: one or more of the new SRN model's member variables
      * may be set/overwritten as soon as InitialiseDaughterCell() is called on
      * the new SRN model.
+     *
+     * Note 3: Only set the variables defined in this class. Variables defined
+     * in parent classes will be defined there.
      */
-    p_model->SetSimulatedToTime(mSimulatedToTime);
-    return p_model;
+
+    // No new vatiables so dont do anything
+}
+
+AbstractSrnModel* NullSrnModel::CreateSrnModel()
+{
+    return new NullSrnModel(*this);
 }
 
 

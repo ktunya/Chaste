@@ -255,7 +255,7 @@ public:
         // The last component was owned by processor "num_procs-1"
         TS_ASSERT_EQUALS(((int)data[data_size-1]/100), num_procs-1);
 
-        H5Pclose (dxpl);
+        H5Pclose(dxpl);
         H5Dclose(dataset_id);
         H5Fclose(file_id);
     }
@@ -441,6 +441,15 @@ public:
                                   true, // extend
                                   "Data",
                                   true); // cache
+
+            // Check chunk info was read correctly
+            hsize_t expected_chunk_size[3] = {1, 100, 1};
+            for ( int i=0; i<3; ++i )
+            {
+                TS_ASSERT_EQUALS(writer.mChunkSize[i], expected_chunk_size[i]);
+            }
+            // Check the cache has reserved the right amount of space
+            TS_ASSERT_EQUALS(writer.mDataCache.capacity(), writer.mNumberOwned);
 
             // Get IDs for the variables in the file
             int node_id = writer.GetVariableByName("Node");
@@ -789,7 +798,10 @@ public:
                               true); // use cache
         writer.DefineFixedDimension(number_nodes);
 
-        /* For coverage: test cached writer can cope with chunking (see note below) */
+        /* Set specific chunk dims for coverage.
+         * We expect that the writer will flush whole chunks (every 3 steps in
+         * this case) automatically, but we have 10 entries, so Close() will do
+         * for the final flush. */
         writer.SetFixedChunkSize(3, 10, 2);
 
         int vm_id = writer.DefineVariable("V_m", "millivolts");
@@ -802,6 +814,16 @@ public:
         writer.DefineUnlimitedDimension("Time", "msec");
 
         writer.EndDefineMode();
+
+        // Check chunk info was read correctly
+        hsize_t expected_chunk_size[3] = {3, 10, 2};
+        for ( int i=0; i<3; ++i )
+        {
+            TS_ASSERT_EQUALS(writer.mChunkSize[i], expected_chunk_size[i]);
+        }
+        // Check the cache has reserved the right amount of space
+        unsigned expected_capacity = 3 * writer.mNumberOwned * 2;
+        TS_ASSERT_EQUALS(writer.mDataCache.capacity(), expected_capacity);
 
         DistributedVectorFactory factory(number_nodes);
 
@@ -824,11 +846,14 @@ public:
             writer.PutStripedVector(striped_variable_IDs, petsc_data_long);
             writer.PutUnlimitedVariable(time_step);
             writer.AdvanceAlongUnlimitedDimension();
+
+            // Check that the cache is emptied on whole chunks. Size of cache
+            // should go 0, 200, 400, 0, ... when run with one process.
+            unsigned expected_cache_size = ((time_step+1) % 3) * writer.mNumberOwned * 2;
+            TS_ASSERT_EQUALS(writer.mDataCache.size(), expected_cache_size);
         }
 
-        /* NOTE: The writer will flush whole chunks (every 3 steps in this
-         * case) automatically, but we have 10 entries, so Close() is
-         * responsible for the final flush. */
+        // Final flush happens here
         writer.Close();
 
         TS_ASSERT(CompareFilesViaHdf5DataReader("TestHdf5DataWriter", "hdf5_test_striped_with_cache", true,
@@ -1373,7 +1398,7 @@ public:
     }
 
     /**
-     * Test the functionality for adding further data to an existing file.
+     * Test the functionality for adding a new dataset ("Postprocessing") to an existing file.
      *
      * This test must come after TestHdf5DataWriterFullFormat and TestHdf5DataWriterFullFormatStripedIncomplete,
      * as we extend their files.
@@ -1389,13 +1414,17 @@ public:
         // Open the real file
         Hdf5DataWriter writer(factory, "TestHdf5DataWriter", "hdf5_test_full_format", false, true, "Postprocessing");
 
+        // Can't set alignment on existing file (with pre-existing dataset or not).
+        TS_ASSERT_THROWS_THIS(writer.SetAlignment(123), "Alignment parameter can only be set for new HDF5 files.");
+
+        // CAN set chunk size target on new dataset in existing file
+        writer.SetTargetChunkSize(0x800); // 2 K
+
         // Define what the new dataset is going to look like.
-        {
-            writer.DefineFixedDimension(number_nodes);
-            writer.DefineVariable("Phase", "dimensionless");
-            writer.DefineUnlimitedDimension("Time", "msec", 10);
-            writer.EndDefineMode();
-        }
+        writer.DefineFixedDimension(number_nodes);
+        writer.DefineVariable("Phase", "dimensionless");
+        writer.DefineUnlimitedDimension("Time", "msec", 10);
+        writer.EndDefineMode();
 
         // Get IDs for the variables in the file
         int phase_id = writer.GetVariableByName("Phase");
@@ -1424,9 +1453,31 @@ public:
         // Close and test
         writer.Close();
         PetscTools::Destroy(phase_petsc);
+
+        TS_ASSERT(CompareFilesViaHdf5DataReader("TestHdf5DataWriter", "hdf5_test_full_format", true,
+                                                "io/test/data", "hdf5_test_full_format_extended", false, 1e-10, "Postprocessing"));
+
+        // Check chunk dimensions are as expected
+        OutputFileHandler file_handler("TestHdf5DataWriter", false);
+        FileFinder file = file_handler.FindFile("hdf5_test_full_format.h5");
+        hid_t h5_file = H5Fopen(file.GetAbsolutePath().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        hid_t dset = H5Dopen(h5_file, "Postprocessing"); // open dataset
+        hid_t dcpl = H5Dget_create_plist(dset); // get dataset creation property list
+        hsize_t expected_dims[3] = {10, 25, 1};
+        hsize_t chunk_dims[3];
+        H5Pget_chunk(dcpl, 3, chunk_dims );
+        for (int i=0; i<3; ++i)
+        {
+            TS_ASSERT_EQUALS(chunk_dims[i], expected_dims[i]);
+        }
+        H5Pclose(dcpl);
+        H5Dclose(dset);
+        H5Fclose(h5_file);
     }
 
-    /* Test for adding a new variable (such as phase) to an existing data set on disk */
+    /**
+     *  Test for adding a new dataset ("Extra stuff") to an existing HDF5 file.
+     */
     void TestHdf5DataWriterAddNewVariable() throw(Exception)
     {
         int number_nodes = 100;
@@ -1550,7 +1601,7 @@ public:
     }
 
     /**
-     * Test the functionality for adding further data to an existing file.
+     * Test the functionality for adding further data to an existing dataset in an existing file.
      *
      * This test must come after TestHdf5DataWriterFullFormat and TestHdf5DataWriterFullFormatStripedIncomplete,
      * as we extend their files.
@@ -1594,6 +1645,13 @@ public:
         TS_ASSERT_THROWS_THIS(writer.GetVariableByName("bob"),
                               "Variable does not exist in hdf5 definitions.");
 
+        // Can't set chunk size on existing dataset
+        TS_ASSERT_THROWS_THIS(writer.SetTargetChunkSize(123),
+                              "Cannot set chunk target size when not in define mode.");
+
+        // Can't set alignment on existing file (with pre-existing dataset or not).
+        TS_ASSERT_THROWS_THIS(writer.SetAlignment(456), "Alignment parameter can only be set for new HDF5 files.");
+
         // Create some extra test data
         Vec node_petsc = factory.CreateVec();
         Vec ik_petsc = factory.CreateVec();
@@ -1634,32 +1692,35 @@ public:
         TS_ASSERT(CompareFilesViaHdf5DataReader("TestHdf5DataWriter", "hdf5_test_full_format", true,
                                                 "io/test/data", "hdf5_test_full_format_extended", false));
 
-        TS_ASSERT(CompareFilesViaHdf5DataReader("TestHdf5DataWriter", "hdf5_test_full_format", true,
-                                                "io/test/data", "hdf5_test_full_format_extended", false, 1e-10, "Postprocessing"));
-
         TS_ASSERT_THROWS_THIS(Hdf5DataWriter another_writer(factory, "TestHdf5DataWriter", "hdf5_test_full_format_striped_incomplete", false, true),
                               "Unable to extend an incomplete data file at present.");
     }
 
     /**
-     * Test the functionality for adding further data to an existing file.
-     *
-     * This test must come after TestHdf5DataWriterFullFormat and TestHdf5DataWriterFullFormatStripedIncomplete,
-     * as we extend their files.
+     * This test must come after TestWriteToExistingFile as it extends even further.
      */
     void TestWriteToExistingFileWithCache(void)
     {
         int number_nodes = 100;
         DistributedVectorFactory factory(number_nodes);
 
-        // Open the real file
         Hdf5DataWriter writer(factory,
                               "TestHdf5DataWriter",
                               "hdf5_test_full_format",
                               false,
-                              true,
+                              true, // extend
                               "Data",
-                              true); // Cache
+                              true); // cache
+
+        // Check chunk info was read correctly
+        hsize_t expected_chunk_size[3] = {10, 100, 3};
+        for ( int i=0; i<3; ++i )
+        {
+            TS_ASSERT_EQUALS(writer.mChunkSize[i], expected_chunk_size[i]);
+        }
+        // Check the cache has reserved the right amount of space
+        unsigned expected_capacity = 10 * writer.mNumberOwned * 3;
+        TS_ASSERT_EQUALS(writer.mDataCache.capacity(), expected_capacity);
 
         // Get IDs for the variables in the file
         int node_id = writer.GetVariableByName("Node");
@@ -1693,7 +1754,23 @@ public:
             // Write to file
             writer.PutStripedVector(variable_IDs, petsc_data_long);
             writer.PutUnlimitedVariable(time_step);
+
+            // Check that the cache is growing at the expected rate.
+            // Should go 300, 600, 900, ... when run with one process.
+            unsigned expected_cache_size = ((time_step-15+1) % 10) * writer.mNumberOwned * 3;
+            TS_ASSERT_EQUALS(writer.mDataCache.size(), expected_cache_size);
+
             writer.AdvanceAlongUnlimitedDimension();
+
+            /*
+             * We started halfway through a chunk, so after the final
+             * iteration there should be a flush (despite only having a half-
+             * full cache).
+             */
+            if ( time_step == 19 )
+            {
+                TS_ASSERT_EQUALS(writer.mDataCache.size(), 0u);
+            }
         }
 
         // Close and test
@@ -2006,6 +2083,85 @@ public:
         Hdf5DataWriterFullFormatStripedIncompleteUsingMatrix(true, "hdf5_test_full_format_striped_incomplete_using_matrix_cached");
     }
 
+    void TestHdf5DataWriterManualChunkSizeAndAlignment() throw(Exception)
+    {
+        std::string folder("TestHdf5DataWriter");
+        std::string filename("hdf5_test_manual_chunk_size_and_alignment");
+
+        {
+            int number_nodes = 2000;
+            DistributedVectorFactory factory(number_nodes);
+            Hdf5DataWriter writer(factory, folder, filename, false);
+
+            // Define some dimensions and variables
+            writer.DefineUnlimitedDimension("Time", "msec", 101);
+            writer.DefineFixedDimension(number_nodes);
+            // Odd number of variables for
+            writer.DefineVariable("Node","dimensionless");
+            writer.DefineVariable("I_K","milliamperes");
+            writer.DefineVariable("I_Na","milliamperes");
+
+            /* Set the target chunk size to 8 K (smaller than normal) and the
+             * alignment to 16 K.
+             * Note: this is a stupid example and just for testing. Because
+             * every 8 K chunk will be aligned to 16 K boundaries the file
+             * will be about twice the size it needs to be on disk!
+             */
+            writer.SetTargetChunkSize(0x2000); // 8 K
+            writer.SetAlignment(0x4000); // 16 K
+            writer.EndDefineMode();
+
+            // Test assertions
+            TS_ASSERT_THROWS_THIS(writer.SetTargetChunkSize(123),
+                                  "Cannot set chunk target size when not in define mode.");
+            TS_ASSERT_THROWS_THIS(writer.SetAlignment(456),
+                                  "Cannot set alignment parameter when not in define mode.");
+
+            // Don't bother actually writing anything, that's tested elsewhere
+            writer.Close();
+        }
+
+        // Open file
+        OutputFileHandler file_handler(folder, false);
+        FileFinder file = file_handler.FindFile(filename+".h5");
+        hid_t h5_file = H5Fopen(file.GetAbsolutePath().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        hid_t dset = H5Dopen(h5_file, "Data"); // open dataset
+
+        /* Check chunk dimensions are as expected for 8 K chunks with these
+         * dataset dimensions. */
+        hid_t dcpl = H5Dget_create_plist(dset); // get dataset creation property list
+        hsize_t expected_dims[3] = {17, 20, 3};
+        hsize_t chunk_dims[3];
+        H5Pget_chunk(dcpl, 3, chunk_dims);
+        for (int i=0; i<3; ++i)
+        {
+            TS_ASSERT_EQUALS(chunk_dims[i], expected_dims[i]);
+        }
+        H5Pclose(dcpl);
+
+        /*
+         * Check the "location" of the datasets (the offset from the start of
+         * file, a bit like a pointer to the start of the dataset) to confirm
+         * alignment was switched on.
+         * With alignment switched off, Data is usually located at 800 B. With
+         * alignment = 16 K it is at 64 K. For the Data_Unlimited dataset the
+         * numbers are 4935472 B (about 4.7 MB) and 10125312 B (about 9.7 MB),
+         * respectively.
+         * (These numbers might be machine-dependent!)
+         */
+        H5O_info_t data_info;
+        H5Oget_info( dset, &data_info );
+        TS_ASSERT_EQUALS(data_info.addr, 0x10000u); // 64 KB
+        H5Dclose(dset);
+
+        dset = H5Dopen(h5_file, "Data_Unlimited");
+        H5Oget_info( dset, &data_info );
+        TS_ASSERT_EQUALS(data_info.addr, 0x9A8000u); // About 9.7 MB
+
+        // Tidy up
+        H5Dclose(dset);
+        H5Fclose(h5_file);
+    }
 };
 
 #endif /*TESTHDF5DATAWRITER_HPP_*/

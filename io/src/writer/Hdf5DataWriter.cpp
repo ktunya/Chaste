@@ -77,7 +77,9 @@ Hdf5DataWriter::Hdf5DataWriter(DistributedVectorFactory& rVectorFactory,
       mSingleIncompleteOutputMatrix(NULL),
       mDoubleIncompleteOutputMatrix(NULL),
       mUseOptimalChunkSizeAlgorithm(true),
-      mNumberOfChunks(0u),
+      mNumberOfChunks(0),
+      mChunkTargetSize(0x20000), // 128 K
+      mAlignment(0), // No alignment
       mUseCache(useCache),
       mCacheFirstTimeStep(0u)
 {
@@ -251,6 +253,15 @@ Hdf5DataWriter::Hdf5DataWriter(DistributedVectorFactory& rVectorFactory,
                 EXCEPTION("Unable to extend an incomplete data file at present.");
             }
 
+            // Record chunk dimensions (useful for cached write mode)
+            hid_t dcpl = H5Dget_create_plist(mVariablesDatasetId); // get dataset creation property list
+            H5Pget_chunk(dcpl, DATASET_DIMS, mChunkSize );
+            if (mUseCache)
+            {
+                // Reserve space. Enough for one chunk in the time dimension.
+                mDataCache.reserve(mChunkSize[0]*mNumberOwned*mDatasetDims[2]);
+            }
+
             // Done
             AdvanceAlongUnlimitedDimension();
         }
@@ -313,10 +324,14 @@ void Hdf5DataWriter::OpenFile()
     {
         hid_t fcpl = H5Pcreate(H5P_FILE_CREATE);
         /*
-         * Align objects to disk block size. Useful for striped filesystem e.g. Lustre
-         * Ideally this should match the chunk size (see "target_size_in_bytes" below).
+         * Align objects to multiples of some number of bytes. Useful for
+         * striped filesystem e.g. Lustre. Ideally this should match the chunk
+         * size (see SetTargetChunkSize).
          */
-        // H5Pset_alignment(fapl, 0, 1024*1024); // Align to 1 M blocks
+        if ( mAlignment != 0 )
+        {
+            H5Pset_alignment(fapl, 0, mAlignment);
+        }
 
         /*
          * The stripe size can be set on the directory just before creation of the H5
@@ -592,15 +607,12 @@ void Hdf5DataWriter::EndDefineMode()
     dataset_max_dims[1] = mDatasetDims[1];
     dataset_max_dims[2] = mDatasetDims[2];
 
-    // If we didn't already do the chunk calculation (e.g. we're adding a dataset to an existing H5 file)
-    if (mNumberOfChunks==0)
-    {
-        SetChunkSize();
-    }
+    // Set chunk dimensions for the new dataset
+    SetChunkSize();
 
     if (mUseCache)
     {
-        // Reserve space. One chunk worth (in time) for now
+        // Reserve space. Enough for one chunk in the time dimension.
         mDataCache.reserve(mChunkSize[0]*mNumberOwned*mDatasetDims[2]);
     }
 
@@ -799,28 +811,35 @@ void Hdf5DataWriter::PutVector(int variableID, Vec petscVector)
         MatMult(mSinglePermutation, petscVector, output_petsc_vector);
     }
 
-    // Define a dataset in memory for this process
-    hid_t memspace;
+    // Define memspace and hyperslab
+    hid_t memspace, hyperslab_space;
     if (mNumberOwned != 0)
     {
         hsize_t v_size[1] = {mNumberOwned};
         memspace = H5Screate_simple(1, v_size, NULL);
+
+        hsize_t count[DATASET_DIMS] = {1, mNumberOwned, 1};
+        hsize_t offset_dims[DATASET_DIMS] = {mCurrentTimeStep, mOffset, (unsigned)(variableID)};
+
+        hyperslab_space = H5Dget_space(mVariablesDatasetId);
+        H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, offset_dims, NULL, count, NULL);
     }
     else
     {
+#if H5_VERS_MAJOR==1 && H5_VERS_MINOR>=8 // HDF5 1.8+
         memspace = H5Screate(H5S_NULL);
+        hyperslab_space = H5Screate(H5S_NULL);
+#else
+        // Horrible hack for HDF5 1.6
+        memspace = 0;
+        hyperslab_space = H5Dget_space(mVariablesDatasetId);
+        H5Sselect_none(hyperslab_space);
+#endif
     }
-
-    // Select hyperslab in the file
-    hsize_t count[DATASET_DIMS] = {1, mNumberOwned, 1};
-    hsize_t offset_dims[DATASET_DIMS] = {mCurrentTimeStep, mOffset, (unsigned)(variableID)};
-    hid_t file_dataspace = H5Dget_space(mVariablesDatasetId);
 
     // Create property list for collective dataset
     hid_t property_list_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(property_list_id, H5FD_MPIO_COLLECTIVE);
-
-    H5Sselect_hyperslab(file_dataspace, H5S_SELECT_SET, offset_dims, NULL, count, NULL);
 
     double* p_petsc_vector;
     VecGetArray(output_petsc_vector, &p_petsc_vector);
@@ -834,7 +853,7 @@ void Hdf5DataWriter::PutVector(int variableID, Vec petscVector)
         }
         else
         {
-            H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, file_dataspace, property_list_id, p_petsc_vector);
+            H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, hyperslab_space, property_list_id, p_petsc_vector);
         }
     }
     else
@@ -857,7 +876,7 @@ void Hdf5DataWriter::PutVector(int variableID, Vec petscVector)
             }
             else
             {
-                H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, file_dataspace, property_list_id, p_petsc_vector_incomplete);
+                H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, hyperslab_space, property_list_id, p_petsc_vector_incomplete);
             }
         }
         else
@@ -876,19 +895,18 @@ void Hdf5DataWriter::PutVector(int variableID, Vec petscVector)
             }
             else
             {
-                H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, file_dataspace, property_list_id, local_data.get());
+                H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, hyperslab_space, property_list_id, local_data.get());
             }
         }
     }
 
     VecRestoreArray(output_petsc_vector, &p_petsc_vector);
 
+#if H5_VERS_MAJOR==1 && H5_VERS_MINOR>=8 // HDF5 1.8+
+    H5Sclose(memspace);
+#endif
+    H5Sclose(hyperslab_space);
     H5Pclose(property_list_id);
-    H5Sclose(file_dataspace);
-    if (mNumberOwned !=0)
-    {
-        H5Sclose(memspace);
-    }
 
     if (petscVector != output_petsc_vector)
     {
@@ -964,26 +982,33 @@ void Hdf5DataWriter::PutStripedVector(std::vector<int> variableIDs, Vec petscVec
         // Apply the permutation matrix
         MatMult(mDoublePermutation, petscVector, output_petsc_vector);
     }
-    // Define a dataset in memory for this process
-    hid_t memspace;
+    // Define memspace and hyperslab
+    hid_t memspace, hyperslab_space;
     if (mNumberOwned != 0)
     {
         hsize_t v_size[1] = {mNumberOwned*NUM_STRIPES};
         memspace = H5Screate_simple(1, v_size, NULL);
+
+        hsize_t start[DATASET_DIMS] = {mCurrentTimeStep, mOffset, (unsigned)(firstVariableID)};
+        hsize_t stride[DATASET_DIMS] = {1, 1, 1};//we are imposing contiguous variables, hence the stride is 1 (3rd component)
+        hsize_t block_size[DATASET_DIMS] = {1, mNumberOwned, 1};
+        hsize_t number_blocks[DATASET_DIMS] = {1, 1, NUM_STRIPES};
+
+        hyperslab_space = H5Dget_space(mVariablesDatasetId);
+        H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, start, stride, number_blocks, block_size);
     }
     else
     {
+#if H5_VERS_MAJOR==1 && H5_VERS_MINOR>=8 // HDF5 1.8+
         memspace = H5Screate(H5S_NULL);
+        hyperslab_space = H5Screate(H5S_NULL);
+#else
+        // Horrible hack for HDF5 1.6
+        memspace = 0;
+        hyperslab_space = H5Dget_space(mVariablesDatasetId);
+        H5Sselect_none(hyperslab_space);
+#endif
     }
-
-    // Select hyperslab in the file
-    hsize_t start[DATASET_DIMS] = {mCurrentTimeStep, mOffset, (unsigned)(firstVariableID)};
-    hsize_t stride[DATASET_DIMS] = {1, 1, 1};//we are imposing contiguous variables, hence the stride is 1 (3rd component)
-    hsize_t block_size[DATASET_DIMS] = {1, mNumberOwned, 1};
-    hsize_t number_blocks[DATASET_DIMS] = {1, 1, NUM_STRIPES};
-
-    hid_t hyperslab_space = H5Dget_space(mVariablesDatasetId);
-    H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, start, stride, number_blocks, block_size);
 
     // Create property list for collective dataset write, and write! Finally.
     hid_t property_list_id = H5Pcreate(H5P_DATASET_XFER);
@@ -1059,8 +1084,10 @@ void Hdf5DataWriter::PutStripedVector(std::vector<int> variableIDs, Vec petscVec
 
     VecRestoreArray(output_petsc_vector, &p_petsc_vector);
 
-    H5Sclose(hyperslab_space);
+#if H5_VERS_MAJOR==1 && H5_VERS_MINOR>=8 // HDF5 1.8+
     H5Sclose(memspace);
+#endif
+    H5Sclose(hyperslab_space);
     H5Pclose(property_list_id);
 
     if (petscVector != output_petsc_vector)
@@ -1085,37 +1112,50 @@ void Hdf5DataWriter::WriteCache()
         // Nothing to do.
         return;
     }
-    // Define a dataset in memory for this process
-    hid_t memspace;
+
+//    PRINT_3_VARIABLES(mCacheFirstTimeStep, mOffset, 0)
+//    PRINT_3_VARIABLES(mCurrentTimeStep-mCacheFirstTimeStep, mNumberOwned, mDatasetDims[2])
+//    PRINT_VARIABLE(mDataCache.size())
+
+    // Define memspace and hyperslab
+    hid_t memspace, hyperslab_space;
     if (mNumberOwned != 0)
     {
         hsize_t v_size[1] = {mDataCache.size()};
         memspace = H5Screate_simple(1, v_size, NULL);
+
+        hsize_t start[DATASET_DIMS] = {mCacheFirstTimeStep, mOffset, 0};
+        hsize_t count[DATASET_DIMS] = {mCurrentTimeStep-mCacheFirstTimeStep, mNumberOwned, mDatasetDims[2]};
+        assert((mCurrentTimeStep-mCacheFirstTimeStep)*mNumberOwned*mDatasetDims[2] == mDataCache.size()); // Got size right?
+
+        hyperslab_space = H5Dget_space(mVariablesDatasetId);
+        H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, start, NULL, count, NULL);
     }
     else
     {
+#if H5_VERS_MAJOR==1 && H5_VERS_MINOR>=8 // HDF5 1.8+
         memspace = H5Screate(H5S_NULL);
+        hyperslab_space = H5Screate(H5S_NULL);
+#else
+        // Horrible hack for HDF5 1.6
+        memspace = 0;
+        hyperslab_space = H5Dget_space(mVariablesDatasetId);
+        H5Sselect_none(hyperslab_space);
+#endif
     }
 
-    // Select hyperslab in the file
-//    PRINT_3_VARIABLES(mCacheFirstTimeStep, mOffset, 0)
-//    PRINT_3_VARIABLES(mCurrentTimeStep-mCacheFirstTimeStep, mNumberOwned, mDatasetDims[2])
-//    PRINT_VARIABLE(mDataCache.size())
-    hsize_t start[DATASET_DIMS] = {mCacheFirstTimeStep, mOffset, 0};
-    hsize_t count[DATASET_DIMS] = {mCurrentTimeStep-mCacheFirstTimeStep, mNumberOwned, mDatasetDims[2]};
-    assert((mCurrentTimeStep-mCacheFirstTimeStep)*mNumberOwned*mDatasetDims[2] == mDataCache.size()); // Got size right?
-
-    hid_t hyperslab_space = H5Dget_space(mVariablesDatasetId);
-    H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, start, NULL, count, NULL);
-
-    // Create property list for collective dataset write, and write! Finally.
+    // Create property list for collective dataset write
     hid_t property_list_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(property_list_id, H5FD_MPIO_COLLECTIVE);
 
+    // Write!
     H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, hyperslab_space, property_list_id, &mDataCache[0]);
 
-    H5Sclose(hyperslab_space);
+    // Tidy up
+#if H5_VERS_MAJOR==1 && H5_VERS_MINOR>=8 // HDF5 1.8+
     H5Sclose(memspace);
+#endif
+    H5Sclose(hyperslab_space);
     H5Pclose(property_list_id);
 
     mCacheFirstTimeStep = mCurrentTimeStep; // Update where we got to
@@ -1210,8 +1250,12 @@ void Hdf5DataWriter::AdvanceAlongUnlimitedDimension()
 
     mCurrentTimeStep++;
 
-    // Write whole chunks
-    if ( mUseCache && (mCurrentTimeStep-mCacheFirstTimeStep == mChunkSize[0]))
+    /*
+     * Write when stepping over a chunk boundary. Note: NOT the same as write
+     * out when the chunk size == the cache size, because we might have started
+     * part-way through a chunk.
+     */
+    if ( mUseCache && (mCurrentTimeStep % mChunkSize[0] == 0))
     {
         WriteCache();
     }
@@ -1409,59 +1453,9 @@ void Hdf5DataWriter::CalculateChunkDims( unsigned targetSize, unsigned* pChunkSi
 
 void Hdf5DataWriter::SetChunkSize()
 {
-/*
- * * NOTES ON CHUNK SIZE AND ALIGNMENT *
- *
- * A few lines below this block of documentation we set the target chunk size
- * to 128 K, which seems to be a good compromise for small problems (e.g. on a
- * desktop PC). For larger problems, I/O performance often improves with
- * increased chunk size. A sweet spot seems to be 1 M chunks.
- *
- * On a striped filesystem, for best performance set the chunk size and
- * alignment (using `H5Pset_alignment` above) to the file stripe size. With
- * `H5Pset_alignment`, every chunk starts at a multiple of the alignment value.
- *
- * To avoid wasting space, the chunk size should be an integer multiple of the
- * alignment value. Note that the algorithm below automatically goes back one
- * step after exceeding the chunk size, which minimises wasted space. To see
- * why, consider the examples below.
- *
- * (Example 1) Say our file system uses 1 M stripes. If we set
- *     target_size_in_bytes = 1024*1024;
- * below and uncomment
- *     H5Pset_alignment(fapl, 0, 1024*1024);
- * above, i.e. aim for (slightly under) 1 M chunks and align them to 1 M
- * boundaries, then the algorithm below will get as close as possible to 1 M
- * chunks but not exceed it, so each chunk will be padded slightly to sit on
- * the 1 M boundaries. Each chunk will therefore have its own stripe on the
- * file system, which should give us the best bandwidth and least contention.
- * Conclusion: this is optimal!
- *
- * Note: In general the algorithm can get very close to the target so the
- * waste isn't bad. Typical utilization is 99.99% (check with "h5ls -v ...").
- *
- * (Example 2) We set
- *     target_size_in_bytes = 1024*1024/8;
- * and uncomment
- *     H5Pset_alignment(fapl, 0, 1024*1024);
- * i.e. 128 K chunks aligned to 1 M boundaries. This would pad every chunk to
- * 1 M boundaries, wasting 7/8 of the space in the file! A file which might be
- * 5 G with an efficient layout would be more like 40 G! Conclusion: setting
- * the chunk size to less than the alignment value is very bad!
- *
- * (Example 3) Say our file system uses 1 M stripes. We set
- *     target_size_in_bytes = 1024*1024*2;
- * and uncomment
- *     H5Pset_alignment(fapl, 0, 1024*1024);
- * i.e. 2 M chunks aligned to 1 M boundaries. This might not be optimal, but
- * it's OK, since the chunk size is (slightly under) twice the alignment, as in
- * Example 1 the amount of padding would be very small. Each read/write would
- * require accessing 2 stripes on the file system. Conclusion: a chunk size of
- * an integer multiple of the alignment value is fine (but not optimal).
- */
     if (mUseOptimalChunkSizeAlgorithm)
     {
-        const unsigned target_size_in_bytes = 1024*1024/8; // 128 K
+        const unsigned target_size_in_bytes = mChunkTargetSize;
 
         unsigned target_size = 0;
         unsigned chunk_size_in_bytes;
@@ -1502,4 +1496,43 @@ void Hdf5DataWriter::SetChunkSize()
         std::cout << "Hdf5DataWriter dataset contains " << mNumberOfChunks << " chunks of " << chunk_size_in_bytes << " B." << std::endl;
     }
     */
+}
+
+void Hdf5DataWriter::SetTargetChunkSize(hsize_t targetSize)
+{
+    if (!mIsInDefineMode)
+    {
+        /* Must be in define mode, i.e. creating a new dataset (and possibly a
+         * new HDF5 file) to set the dataset chunk dims. */
+        EXCEPTION("Cannot set chunk target size when not in define mode.");
+    }
+    mChunkTargetSize = targetSize;
+}
+
+void Hdf5DataWriter::SetAlignment(hsize_t alignment)
+{
+    /* Note: calling this method after OpenFile() is pointless as that's where
+     * H5Pset_alignment happens, so the obvious way to protect this method is
+     * to check mFileId to assert H5Fopen has not been called yet.
+     * Unfortunately it's uninitialised so is not always safe to check!
+     *
+     * Fortunately OpenFile() is only called in one of two ways:
+     * 1. In the constructor in combination with mUseExistingFile. Subsequently
+     *    calling this method will end up throwing in the first block below
+     *    (since mUseExistingFile is const).
+     * 2. By EndDefineMode(). Subsequently calling this method will end up in
+     *    the second block below.
+     */
+    if (mUseExistingFile)
+    {
+        // Must be called on new HDF5 files.
+        EXCEPTION("Alignment parameter can only be set for new HDF5 files.");
+    }
+    if (!mIsInDefineMode)
+    {
+        // Creating a new file but EndDefineMode() called already.
+        EXCEPTION("Cannot set alignment parameter when not in define mode.");
+    }
+
+    mAlignment = alignment;
 }

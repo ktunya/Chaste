@@ -38,12 +38,36 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "DifferentiatedCellProliferativeType.hpp"
 
 ContactInhibitionCellCycleModel::ContactInhibitionCellCycleModel()
-    : AbstractSimpleCellCycleModel(),
+    : AbstractSimplePhaseBasedCellCycleModel(),
       mQuiescentVolumeFraction(DOUBLE_UNSET),
       mEquilibriumVolume(DOUBLE_UNSET),
       mCurrentQuiescentOnsetTime(SimulationTime::Instance()->GetTime()),
       mCurrentQuiescentDuration(0.0)
 {
+}
+
+ContactInhibitionCellCycleModel::ContactInhibitionCellCycleModel(const ContactInhibitionCellCycleModel& rModel)
+    : AbstractSimplePhaseBasedCellCycleModel(rModel),
+      mQuiescentVolumeFraction(rModel.mQuiescentVolumeFraction),
+      mEquilibriumVolume(rModel.mEquilibriumVolume),
+      mCurrentQuiescentOnsetTime(rModel.mCurrentQuiescentOnsetTime),
+      mCurrentQuiescentDuration(rModel.mCurrentQuiescentDuration)
+{
+    /*
+     * Set each member variable of the new cell-cycle model that inherits
+     * its value from the parent.
+     *
+     * Note 1: some of the new cell-cycle model's member variables will already
+     * have been correctly initialized in its constructor or parent classes.
+     *
+     * Note 2: one or more of the new cell-cycle model's member variables
+     * may be set/overwritten as soon as InitialiseDaughterCell() is called on
+     * the new cell-cycle model.
+     *
+     * Note 3: Only set the variables defined in this class. Variables defined
+     * in parent classes will be defined there.
+     *
+     */
 }
 
 void ContactInhibitionCellCycleModel::UpdateCellCyclePhase()
@@ -117,36 +141,7 @@ void ContactInhibitionCellCycleModel::UpdateCellCyclePhase()
 
 AbstractCellCycleModel* ContactInhibitionCellCycleModel::CreateCellCycleModel()
 {
-    // Create a new cell-cycle model
-    ContactInhibitionCellCycleModel* p_model = new ContactInhibitionCellCycleModel();
-
-    /*
-     * Set each member variable of the new cell-cycle model that inherits
-     * its value from the parent.
-     *
-     * Note 1: some of the new cell-cycle model's member variables (namely
-     * mBirthTime, mCurrentCellCyclePhase, mReadyToDivide, mTimeSpentInG1Phase,
-     * mCurrentHypoxicDuration, mCurrentHypoxiaOnsetTime) will already have been
-     * correctly initialized in its constructor.
-     *
-     * Note 2: one or more of the new cell-cycle model's member variables
-     * may be set/overwritten as soon as InitialiseDaughterCell() is called on
-     * the new cell-cycle model.
-     */
-    p_model->SetBirthTime(mBirthTime);
-    p_model->SetDimension(mDimension);
-    p_model->SetMinimumGapDuration(mMinimumGapDuration);
-    p_model->SetStemCellG1Duration(mStemCellG1Duration);
-    p_model->SetTransitCellG1Duration(mTransitCellG1Duration);
-    p_model->SetSDuration(mSDuration);
-    p_model->SetG2Duration(mG2Duration);
-    p_model->SetMDuration(mMDuration);
-    p_model->SetQuiescentVolumeFraction(mQuiescentVolumeFraction);
-    p_model->SetEquilibriumVolume(mEquilibriumVolume);
-    p_model->SetCurrentQuiescentOnsetTime(mCurrentQuiescentOnsetTime);
-    p_model->SetCurrentQuiescentDuration(mCurrentQuiescentDuration);
-
-    return p_model;
+    return new ContactInhibitionCellCycleModel(*this);
 }
 
 void ContactInhibitionCellCycleModel::SetQuiescentVolumeFraction(double quiescentVolumeFraction)
@@ -154,7 +149,7 @@ void ContactInhibitionCellCycleModel::SetQuiescentVolumeFraction(double quiescen
     mQuiescentVolumeFraction = quiescentVolumeFraction;
 }
 
-double ContactInhibitionCellCycleModel::GetQuiescentVolumeFraction()
+double ContactInhibitionCellCycleModel::GetQuiescentVolumeFraction() const
 {
     return mQuiescentVolumeFraction;
 }
@@ -164,7 +159,7 @@ void ContactInhibitionCellCycleModel::SetEquilibriumVolume(double equilibriumVol
     mEquilibriumVolume = equilibriumVolume;
 }
 
-double ContactInhibitionCellCycleModel::GetEquilibriumVolume()
+double ContactInhibitionCellCycleModel::GetEquilibriumVolume() const
 {
     return mEquilibriumVolume;
 }
@@ -174,7 +169,7 @@ void ContactInhibitionCellCycleModel::SetCurrentQuiescentDuration(double current
     mCurrentQuiescentDuration = currentQuiescentDuration;
 }
 
-double ContactInhibitionCellCycleModel::GetCurrentQuiescentDuration()
+double ContactInhibitionCellCycleModel::GetCurrentQuiescentDuration() const
 {
     return mCurrentQuiescentDuration;
 }
@@ -184,7 +179,7 @@ void ContactInhibitionCellCycleModel::SetCurrentQuiescentOnsetTime(double curren
     mCurrentQuiescentOnsetTime = currentQuiescentOnsetTime;
 }
 
-double ContactInhibitionCellCycleModel::GetCurrentQuiescentOnsetTime()
+double ContactInhibitionCellCycleModel::GetCurrentQuiescentOnsetTime() const
 {
     return mCurrentQuiescentOnsetTime;
 }
@@ -195,7 +190,7 @@ void ContactInhibitionCellCycleModel::OutputCellCycleModelParameters(out_stream&
     *rParamsFile << "\t\t\t<EquilibriumVolume>" << mEquilibriumVolume << "</EquilibriumVolume>\n";
 
     // Call method on direct parent class
-    AbstractSimpleCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
+    AbstractSimplePhaseBasedCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
 }
 
 // Serialization for Boost >= 1.36

@@ -33,14 +33,14 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifndef ABSTRACTSIMPLECELLCYCLEMODEL_HPP_
-#define ABSTRACTSIMPLECELLCYCLEMODEL_HPP_
+#ifndef ABSTRACTSIMPLEPHASEBASEDCELLCYCLEMODEL_HPP_
+#define ABSTRACTSIMPLEPHASEBASEDCELLCYCLEMODEL_HPP_
 
 #include "ChasteSerialization.hpp"
 #include "ClassIsAbstract.hpp"
 #include <boost/serialization/base_object.hpp>
 
-#include "AbstractCellCycleModel.hpp"
+#include "AbstractPhaseBasedCellCycleModel.hpp"
 
 /**
  * This class contains all the functionality shared by 'simple' cell-cycle models,
@@ -54,7 +54,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * as the cell ages, according to a system of ordinary differential equations (ODEs)
  * governing (for example) the concentrations of key intracellular proteins.
  */
-class AbstractSimpleCellCycleModel : public AbstractCellCycleModel
+class AbstractSimplePhaseBasedCellCycleModel : public AbstractPhaseBasedCellCycleModel
 {
 private:
 
@@ -69,7 +69,7 @@ private:
     template<class Archive>
     void serialize(Archive & archive, const unsigned int version)
     {
-        archive & boost::serialization::base_object<AbstractCellCycleModel>(*this);
+        archive & boost::serialization::base_object<AbstractPhaseBasedCellCycleModel>(*this);
     }
 
 protected:
@@ -77,23 +77,38 @@ protected:
     /**
      * Subclasses can override this function if they wish, this just
      * allocates the default values for each of the different cell
-     * types' G1 durations as defined in AbstractCellCycleModel.
+     * types' G1 durations as defined in AbstractPhaseBasedCellCycleModel.
      */
     virtual void SetG1Duration();
+
+    /**
+     * Protected copy-constructor for use by CreateCellCycleModel.
+     * The only way for external code to create a copy of a cell cycle model
+     * is by calling that method, to ensure that a model of the correct subclass is created.
+     * This copy-constructor helps subclasses to ensure that all member variables are correctly copied when this happens.
+     *
+     * This method is called by child classes to set member variables for a daughter cell upon cell division.
+     * Note that the parent cell cycle model will have had ResetForDivision() called just before CreateSrnModel() is called,
+     * so performing an exact copy of the parent is suitable behaviour. Any daughter-cell-specific initialisation
+     * can be done in InitialiseDaughterCell().
+     *
+     * @param rModel the cell cycle model to copy.
+     */
+    AbstractSimplePhaseBasedCellCycleModel(const AbstractSimplePhaseBasedCellCycleModel& rModel);
 
 public:
 
     /**
-     * Default constructor - creates an AbstractSimpleCellCycleModel.
+     * Default constructor - creates an AbstractSimplePhaseBasedCellCycleModel.
      */
-    AbstractSimpleCellCycleModel();
+    AbstractSimplePhaseBasedCellCycleModel();
 
     /**
      * Destructor.
      */
-    virtual ~AbstractSimpleCellCycleModel();
+    virtual ~AbstractSimplePhaseBasedCellCycleModel();
 
-    /** See AbstractCellCycleModel::ResetForDivision() */
+    /** See AbstractPhaseBasedCellCycleModel::ResetForDivision() */
     virtual void ResetForDivision();
 
     /**
@@ -109,7 +124,7 @@ public:
      */
     void InitialiseDaughterCell();
 
-    /** See AbstractCellCycleModel::Initialise() */
+    /** See AbstractPhaseBasedCellCycleModel::Initialise() */
     virtual void Initialise();
 
     /**
@@ -120,6 +135,6 @@ public:
     virtual void OutputCellCycleModelParameters(out_stream& rParamsFile);
 };
 
-CLASS_IS_ABSTRACT(AbstractSimpleCellCycleModel)
+CLASS_IS_ABSTRACT(AbstractSimplePhaseBasedCellCycleModel)
 
-#endif /*ABSTRACTSIMPLECELLCYCLEMODEL_HPP_*/
+#endif /*ABSTRACTSIMPLEPHASEBASEDCELLCYCLEMODEL_HPP_*/

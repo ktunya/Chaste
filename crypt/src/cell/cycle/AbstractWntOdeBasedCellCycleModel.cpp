@@ -36,7 +36,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Exception.hpp"
 
 AbstractWntOdeBasedCellCycleModel::AbstractWntOdeBasedCellCycleModel(boost::shared_ptr<AbstractCellCycleModelOdeSolver> pOdeSolver)
-    : AbstractOdeBasedCellCycleModel(SimulationTime::Instance()->GetTime(), pOdeSolver)
+    : AbstractOdeBasedPhaseBasedCellCycleModel(SimulationTime::Instance()->GetTime(), pOdeSolver)
 {
 }
 
@@ -44,7 +44,29 @@ AbstractWntOdeBasedCellCycleModel::~AbstractWntOdeBasedCellCycleModel()
 {
 }
 
-double AbstractWntOdeBasedCellCycleModel::GetWntLevel()
+AbstractWntOdeBasedCellCycleModel::AbstractWntOdeBasedCellCycleModel(const AbstractWntOdeBasedCellCycleModel& rModel)
+   : AbstractOdeBasedPhaseBasedCellCycleModel(rModel)
+{
+    /*
+     * Set each member variable of the new cell-cycle model that inherits
+     * its value from the parent.
+     *
+     * Note 1: some of the new cell-cycle model's member variables will already
+     * have been correctly initialized in its constructor or parent classes.
+     *
+     * Note 2: one or more of the new cell-cycle model's member variables
+     * may be set/overwritten as soon as InitialiseDaughterCell() is called on
+     * the new cell-cycle model.
+     *
+     * Note 3: Only set the variables defined in this class. Variables defined
+     * in parent classes will be defined there.
+     *
+     */
+
+    // No new member variables.
+}
+
+double AbstractWntOdeBasedCellCycleModel::GetWntLevel() const
 {
     assert(mpCell != NULL);
     double level = 0;
@@ -78,7 +100,7 @@ double AbstractWntOdeBasedCellCycleModel::GetWntLevel()
 
 void AbstractWntOdeBasedCellCycleModel::ResetForDivision()
 {
-    AbstractOdeBasedCellCycleModel::ResetForDivision();
+    AbstractOdeBasedPhaseBasedCellCycleModel::ResetForDivision();
 
     assert(mpOdeSystem != NULL);
 
@@ -94,7 +116,7 @@ void AbstractWntOdeBasedCellCycleModel::ResetForDivision()
 
 void AbstractWntOdeBasedCellCycleModel::UpdateCellCyclePhase()
 {
-    AbstractOdeBasedCellCycleModel::UpdateCellCyclePhase();
+    AbstractOdeBasedPhaseBasedCellCycleModel::UpdateCellCyclePhase();
     if (SimulationTime::Instance()->GetTime() == mLastTime
         || GetOdeStopTime() == mLastTime)
     {
@@ -130,6 +152,6 @@ void AbstractWntOdeBasedCellCycleModel::OutputCellCycleModelParameters(out_strea
     // No new parameters to output
 
     // Call method on direct parent class
-    AbstractOdeBasedCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
+    AbstractOdeBasedPhaseBasedCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
 }
 

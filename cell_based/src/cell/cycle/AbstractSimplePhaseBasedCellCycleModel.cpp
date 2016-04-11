@@ -33,32 +33,54 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "AbstractSimpleCellCycleModel.hpp"
+#include "AbstractSimplePhaseBasedCellCycleModel.hpp"
 #include "Exception.hpp"
 #include "StemCellProliferativeType.hpp"
 #include "TransitCellProliferativeType.hpp"
 #include "DifferentiatedCellProliferativeType.hpp"
 
-AbstractSimpleCellCycleModel::AbstractSimpleCellCycleModel()
+AbstractSimplePhaseBasedCellCycleModel::AbstractSimplePhaseBasedCellCycleModel()
 {
 }
 
-AbstractSimpleCellCycleModel::~AbstractSimpleCellCycleModel()
+AbstractSimplePhaseBasedCellCycleModel::~AbstractSimplePhaseBasedCellCycleModel()
 {
 }
 
-void AbstractSimpleCellCycleModel::Initialise()
+AbstractSimplePhaseBasedCellCycleModel::AbstractSimplePhaseBasedCellCycleModel(const AbstractSimplePhaseBasedCellCycleModel& rModel)
+    : AbstractPhaseBasedCellCycleModel(rModel)
+{
+    /*
+     * Set each member variable of the new cell-cycle model that inherits
+     * its value from the parent.
+     *
+     * Note 1: some of the new cell-cycle model's member variables will already
+     * have been correctly initialized in its constructor or parent classes.
+     *
+     * Note 2: one or more of the new cell-cycle model's member variables
+     * may be set/overwritten as soon as InitialiseDaughterCell() is called on
+     * the new cell-cycle model.
+     *
+     * Note 3: Only set the variables defined in this class. Variables defined
+     * in parent classes will be defined there.
+     *
+     */
+
+    // No new member variables.
+}
+
+void AbstractSimplePhaseBasedCellCycleModel::Initialise()
 {
     SetG1Duration();
 }
 
-void AbstractSimpleCellCycleModel::InitialiseDaughterCell()
+void AbstractSimplePhaseBasedCellCycleModel::InitialiseDaughterCell()
 {
-    AbstractCellCycleModel::InitialiseDaughterCell();
+    AbstractPhaseBasedCellCycleModel::InitialiseDaughterCell();
     SetG1Duration();
 }
 
-void AbstractSimpleCellCycleModel::SetG1Duration()
+void AbstractSimplePhaseBasedCellCycleModel::SetG1Duration()
 {
     assert(mpCell != NULL);
 
@@ -80,14 +102,14 @@ void AbstractSimpleCellCycleModel::SetG1Duration()
     }
 }
 
-void AbstractSimpleCellCycleModel::ResetForDivision()
+void AbstractSimplePhaseBasedCellCycleModel::ResetForDivision()
 {
-    AbstractCellCycleModel::ResetForDivision();
+    AbstractPhaseBasedCellCycleModel::ResetForDivision();
     mBirthTime = SimulationTime::Instance()->GetTime();
     SetG1Duration();
 }
 
-void AbstractSimpleCellCycleModel::UpdateCellCyclePhase()
+void AbstractSimplePhaseBasedCellCycleModel::UpdateCellCyclePhase()
 {
     double time_since_birth = GetAge();
     assert(time_since_birth >= 0);
@@ -114,10 +136,10 @@ void AbstractSimpleCellCycleModel::UpdateCellCyclePhase()
     }
 }
 
-void AbstractSimpleCellCycleModel::OutputCellCycleModelParameters(out_stream& rParamsFile)
+void AbstractSimplePhaseBasedCellCycleModel::OutputCellCycleModelParameters(out_stream& rParamsFile)
 {
     // No new parameters to output
 
     // Call method on direct parent class
-    AbstractCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
+    AbstractPhaseBasedCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
 }

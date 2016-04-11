@@ -37,6 +37,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CELLCYCLEMODELODEHANDLER_HPP_
 
 #include <boost/shared_ptr.hpp>
+#include <boost/noncopyable.hpp>
 
 #include "ChasteSerialization.hpp"
 #include "AbstractOdeSystem.hpp"
@@ -45,8 +46,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /**
  * This class contains the functionality for running ODEs as part of a cell cycle
- * model.  It is designed to be used as an additional base class for models which
- * require this functionality.
+ * or SRN model.  It is designed to be used as an additional base class for models
+ * which require this functionality.
  */
 class CellCycleModelOdeHandler
 {
@@ -69,7 +70,25 @@ private:
         archive & mDt;
     }
 
+    /**
+     * Prevent copy-assignment of this class, or its subclasses.
+     * Note that we do not define this method, therefore statements like "CellCycleModelOdeHandler new = old;" will not compile.
+     * We do not inherit from boost::noncopyable because we *do* define a protected copy-constructor, for use by CreateCellCycleModel
+     * and CreateSrnModel.
+     *
+     * @return the new ODE handler.
+     * @param rHandler the ODE handler to copy.
+     */
+    CellCycleModelOdeHandler& operator=(const AbstractCellCycleModelOdeSolver&);
+
 protected:
+
+    /**
+     * Protected copy-constructor for use by CreateCellCycleModel and CreateSrnModel.
+     *
+     * @param rHandler ODE handler to copy.
+     */
+    CellCycleModelOdeHandler(const CellCycleModelOdeHandler& rHandler);
 
     /**
      * Timestep to use when solving the ODE system.

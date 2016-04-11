@@ -56,11 +56,34 @@ StochasticWntCellCycleModel::StochasticWntCellCycleModel(boost::shared_ptr<Abstr
 StochasticWntCellCycleModel::~StochasticWntCellCycleModel()
 {}
 
+StochasticWntCellCycleModel::StochasticWntCellCycleModel(const StochasticWntCellCycleModel& rModel)
+   : WntCellCycleModel(rModel),
+     mStochasticG2Duration(rModel.mStochasticG2Duration)
+{
+    /*
+     * Set each member variable of the new cell-cycle model that inherits
+     * its value from the parent.
+     *
+     * Note 1: some of the new cell-cycle model's member variables will already
+     * have been correctly initialized in its constructor or parent classes.
+     *
+     * Note 2: one or more of the new cell-cycle model's member variables
+     * may be set/overwritten as soon as InitialiseDaughterCell() is called on
+     * the new cell-cycle model.
+     *
+     * Note 3: Only set the variables defined in this class. Variables defined
+     * in parent classes will be defined there.
+     *
+     */
+
+    // No new parameters and ODE set in WntCellCycleModel.
+}
+
 void StochasticWntCellCycleModel::GenerateStochasticG2Duration()
 {
     RandomNumberGenerator* p_gen = RandomNumberGenerator::Instance();
 
-    double mean = AbstractCellCycleModel::GetG2Duration();
+    double mean = AbstractPhaseBasedCellCycleModel::GetG2Duration();
     double standard_deviation = 0.9;
     mStochasticG2Duration = p_gen->NormalRandomDeviate(mean, standard_deviation);
 
@@ -89,51 +112,14 @@ void StochasticWntCellCycleModel::ResetForDivision()
     GenerateStochasticG2Duration();
 }
 
-double StochasticWntCellCycleModel::GetG2Duration()
+double StochasticWntCellCycleModel::GetG2Duration() const
 {
     return mStochasticG2Duration;
 }
 
 AbstractCellCycleModel* StochasticWntCellCycleModel::CreateCellCycleModel()
 {
-    // Create a new cell-cycle model
-    StochasticWntCellCycleModel* p_model = new StochasticWntCellCycleModel(mpOdeSolver);
-
-    /*
-     * Set each member variable of the new cell-cycle model that inherits
-     * its value from the parent.
-     *
-     * Note 1: some of the new cell-cycle model's member variables (namely
-     * mBirthTime, mCurrentCellCyclePhase, mReadyToDivide, mDt, mpOdeSolver)
-     * will already have been correctly initialized in its constructor.
-     *
-     * Note 2: one or more of the new cell-cycle model's member variables
-     * may be set/overwritten as soon as InitialiseDaughterCell() is called on
-     * the new cell-cycle model.
-     */
-    p_model->SetBirthTime(mBirthTime);
-    p_model->SetDimension(mDimension);
-    p_model->SetMinimumGapDuration(mMinimumGapDuration);
-    p_model->SetStemCellG1Duration(mStemCellG1Duration);
-    p_model->SetTransitCellG1Duration(mTransitCellG1Duration);
-    p_model->SetSDuration(mSDuration);
-    p_model->SetG2Duration(mG2Duration);
-    p_model->SetMDuration(mMDuration);
-    p_model->SetDivideTime(mDivideTime);
-    p_model->SetFinishedRunningOdes(mFinishedRunningOdes);
-    p_model->SetG2PhaseStartTime(mG2PhaseStartTime);
-    p_model->SetLastTime(mLastTime);
-
-    /*
-     * Create the new cell-cycle model's ODE system and use the current values
-     * of the state variables in mpOdeSystem as an initial condition.
-     */
-    assert(mpOdeSystem);
-    double wnt_level = GetWntLevel();
-    p_model->SetOdeSystem(new WntCellCycleOdeSystem(wnt_level, mpCell->GetMutationState()));
-    p_model->SetStateVariables(mpOdeSystem->rGetStateVariables());
-
-    return p_model;
+   return new StochasticWntCellCycleModel(*this);
 }
 
 void StochasticWntCellCycleModel::OutputCellCycleModelParameters(out_stream& rParamsFile)

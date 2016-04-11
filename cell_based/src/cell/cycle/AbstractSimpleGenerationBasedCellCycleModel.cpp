@@ -39,7 +39,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "TransitCellProliferativeType.hpp"
 
 AbstractSimpleGenerationBasedCellCycleModel::AbstractSimpleGenerationBasedCellCycleModel()
-    : AbstractSimpleCellCycleModel(),
+    : AbstractSimplePhaseBasedCellCycleModel(),
       mGeneration(0),
       mMaxTransitGenerations(3) // taken from Meineke et al, 2001 (doi:10.1046/j.0960-7722.2001.00216.x)
 {
@@ -47,6 +47,28 @@ AbstractSimpleGenerationBasedCellCycleModel::AbstractSimpleGenerationBasedCellCy
 
 AbstractSimpleGenerationBasedCellCycleModel::~AbstractSimpleGenerationBasedCellCycleModel()
 {
+}
+
+AbstractSimpleGenerationBasedCellCycleModel::AbstractSimpleGenerationBasedCellCycleModel(const AbstractSimpleGenerationBasedCellCycleModel& rModel)
+    : AbstractSimplePhaseBasedCellCycleModel(rModel),
+      mGeneration(rModel.mGeneration),
+      mMaxTransitGenerations(rModel.mMaxTransitGenerations)
+{
+    /*
+     * Set each member variable of the new cell-cycle model that inherits
+     * its value from the parent.
+     *
+     * Note 1: some of the new cell-cycle model's member variables will already
+     * have been correctly initialized in its constructor or parent classes.
+     *
+     * Note 2: one or more of the new cell-cycle model's member variables
+     * may be set/overwritten as soon as InitialiseDaughterCell() is called on
+     * the new cell-cycle model.
+     *
+     * Note 3: Only set the variables defined in this class. Variables defined
+     * in parent classes will be defined there.
+     *
+     */
 }
 
 void AbstractSimpleGenerationBasedCellCycleModel::ResetForDivision()
@@ -71,7 +93,7 @@ void AbstractSimpleGenerationBasedCellCycleModel::ResetForDivision()
     {
         mGeneration = 0;
     }
-    AbstractSimpleCellCycleModel::ResetForDivision();
+    AbstractSimplePhaseBasedCellCycleModel::ResetForDivision();
 }
 
 void AbstractSimpleGenerationBasedCellCycleModel::InitialiseDaughterCell()
@@ -99,7 +121,7 @@ void AbstractSimpleGenerationBasedCellCycleModel::InitialiseDaughterCell()
             mpCell->rGetCellPropertyCollection().GetCellPropertyRegistry()->Get<DifferentiatedCellProliferativeType>();
         mpCell->SetCellProliferativeType(p_diff_type);
     }
-    AbstractSimpleCellCycleModel::InitialiseDaughterCell();
+    AbstractSimplePhaseBasedCellCycleModel::InitialiseDaughterCell();
 }
 
 void AbstractSimpleGenerationBasedCellCycleModel::SetGeneration(unsigned generation)
@@ -127,5 +149,5 @@ void AbstractSimpleGenerationBasedCellCycleModel::OutputCellCycleModelParameters
     *rParamsFile << "\t\t\t<MaxTransitGenerations>" << mMaxTransitGenerations << "</MaxTransitGenerations>\n";
 
     // Call method on direct parent class
-    AbstractSimpleCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
+    AbstractSimplePhaseBasedCellCycleModel::OutputCellCycleModelParameters(rParamsFile);
 }

@@ -53,13 +53,12 @@ typedef boost::shared_ptr<Cell> CellPtr;
 
 /**
  * The AbstractSrnModel contains basic information to all sub-cellular reaction network (SRN) models.
- * It handles assignment of a Cell.
  *
  * SRN models are noncopyable since cells are noncopyable.
  *
  * \todo #2752 Thoroughly document this class (including, for example, what SRN stands for!)
  */
-class AbstractSrnModel : public Identifiable, boost::noncopyable
+class AbstractSrnModel : public Identifiable
 {
 private:
 
@@ -83,6 +82,16 @@ private:
         archive & mSimulatedToTime;
     }
 
+    /**
+     * Prevent copy-assignment of this class, or its subclasses.
+     * Note that we do not define this method, therefore statements like "AbstractSrnModel new = old;" will not compile.
+     * We do not inherit from boost::noncopyable because we *do* define a protected copy-constructor, for use by CreateSrnModel.
+     *
+     * @return the new SRN model.
+     * @param rModel the SRN to copy.
+     */
+    AbstractSrnModel& operator=(const AbstractSrnModel&);
+
 protected:
 
     /**
@@ -94,6 +103,20 @@ protected:
      * The time the SRN model has been simulated to.
      */
     double mSimulatedToTime;
+
+    /**
+     * Protected copy-constructor for use by CreateSrnModel.  The only way for external code to create a copy of a SRN model
+     * is by calling that method, to ensure that a model of the correct subclass is created.
+     * This copy-constructor helps subclasses to ensure that all member variables are correctly copied when this happens.
+     *
+     * This method is called by child classes to set member variables for a daughter cell upon cell division.
+     * Note that the parent SRN model will have had ResetForDivision() called just before CreateSrnModel() is called,
+     * so performing an exact copy of the parent is suitable behaviour. Any daughter-cell-specific initialisation
+     * can be done in InitialiseDaughterCell().
+     *
+     * @param rModel the SRN model to copy.
+     */
+    AbstractSrnModel(const AbstractSrnModel& rModel);
 
 public:
 
@@ -117,7 +140,6 @@ public:
      */
     void SetCell(CellPtr pCell);
 
-    ///\todo #2752 remove in favour of copy-constructors
     /**
      * Initialise the SRN model at the start of a simulation.
      *
@@ -160,7 +182,7 @@ public:
     /**
      * @return the time the SRN simulated has run to.
      */
-    double GetSimulatedToTime();
+    double GetSimulatedToTime() const;
 
     /**
      * Simulate the SRN to the current time.
@@ -191,7 +213,9 @@ public:
      * parent is suitable behaviour. Any daughter-cell-specific initialisation
      * can be done in InitialiseDaughterCell().
      *
-     * @return new SRN model
+     * Copy constructors are used to set all the member variables in the appropriate classes.
+     *
+     *  @return new srn model
      */
     virtual AbstractSrnModel* CreateSrnModel()=0;
 

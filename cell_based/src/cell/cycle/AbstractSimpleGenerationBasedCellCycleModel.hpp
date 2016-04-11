@@ -40,7 +40,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ClassIsAbstract.hpp"
 #include <boost/serialization/base_object.hpp>
 
-#include "AbstractSimpleCellCycleModel.hpp"
+#include "AbstractSimplePhaseBasedCellCycleModel.hpp"
 
 /**
  * This class contains all the things common to simple generation-based cell cycle
@@ -51,7 +51,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * N.B. Whether or not the cell should actually divide may depend on
  * Wnt / Oxygen etc. in subclasses.
  */
-class AbstractSimpleGenerationBasedCellCycleModel : public AbstractSimpleCellCycleModel
+class AbstractSimpleGenerationBasedCellCycleModel : public AbstractSimplePhaseBasedCellCycleModel
 {
 private:
 
@@ -66,7 +66,7 @@ private:
     template<class Archive>
     void serialize(Archive & archive, const unsigned int version)
     {
-        archive & boost::serialization::base_object<AbstractSimpleCellCycleModel>(*this);
+        archive & boost::serialization::base_object<AbstractSimplePhaseBasedCellCycleModel>(*this);
         archive & mGeneration;
         archive & mMaxTransitGenerations;
     }
@@ -79,10 +79,26 @@ protected:
     /** How many generations a transit cell lives for before becoming fully differentiated. */
     unsigned mMaxTransitGenerations;
 
+
+    /**
+     * Protected copy-constructor for use by CreateCellCycleModel.
+     * The only way for external code to create a copy of a cell cycle model
+     * is by calling that method, to ensure that a model of the correct subclass is created.
+     * This copy-constructor helps subclasses to ensure that all member variables are correctly copied when this happens.
+     *
+     * This method is called by child classes to set member variables for a daughter cell upon cell division.
+     * Note that the parent cell cycle model will have had ResetForDivision() called just before CreateSrnModel() is called,
+     * so performing an exact copy of the parent is suitable behaviour. Any daughter-cell-specific initialisation
+     * can be done in InitialiseDaughterCell().
+     *
+     * @param rModel the cell cycle model to copy.
+     */
+    AbstractSimpleGenerationBasedCellCycleModel(const AbstractSimpleGenerationBasedCellCycleModel& rModel);
+
 public:
 
     /**
-     * Default constructor - creates an AbstractSimpleCellCycleModel.
+     * Default constructor - creates an AbstractSimpleGenerationBasedCellCycleModel.
      */
     AbstractSimpleGenerationBasedCellCycleModel();
 

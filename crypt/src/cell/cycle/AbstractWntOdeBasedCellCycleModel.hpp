@@ -40,7 +40,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ClassIsAbstract.hpp"
 #include <boost/serialization/base_object.hpp>
 
-#include "AbstractOdeBasedCellCycleModel.hpp"
+#include "AbstractOdeBasedPhaseBasedCellCycleModel.hpp"
 #include "WntConcentration.hpp"
 
 /**
@@ -55,7 +55,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * random periods of time). The CellProliferativeType is updated dependent on the
  * concentration of beta-catenin (given by one of the ODEs).
  */
-class AbstractWntOdeBasedCellCycleModel : public AbstractOdeBasedCellCycleModel
+class AbstractWntOdeBasedCellCycleModel : public AbstractOdeBasedPhaseBasedCellCycleModel
 {
 private:
 
@@ -70,7 +70,7 @@ private:
     template<class Archive>
     void serialize(Archive & archive, const unsigned int version)
     {
-        archive & boost::serialization::base_object<AbstractOdeBasedCellCycleModel>(*this);
+        archive & boost::serialization::base_object<AbstractOdeBasedPhaseBasedCellCycleModel>(*this);
     }
 
 protected:
@@ -78,12 +78,27 @@ protected:
     /**
      * @return the Wnt level experienced by the cell.
      */
-    double GetWntLevel();
+    double GetWntLevel() const;
 
     /**
      * Call base class UpdateCellCyclePhase, then UpdateCellProliferativeType.
      */
     void UpdateCellCyclePhase();
+
+    /**
+     * Protected copy-constructor for use by CreateCellCycleModel.
+     * The only way for external code to create a copy of a cell cycle model
+     * is by calling that method, to ensure that a model of the correct subclass is created.
+     * This copy-constructor helps subclasses to ensure that all member variables are correctly copied when this happens.
+     *
+     * This method is called by child classes to set member variables for a daughter cell upon cell division.
+     * Note that the parent cell cycle model will have had ResetForDivision() called just before CreateSrnModel() is called,
+     * so performing an exact copy of the parent is suitable behaviour. Any daughter-cell-specific initialisation
+     * can be done in InitialiseDaughterCell().
+     *
+     * @param rModel the cell cycle model to copy.
+     */
+    AbstractWntOdeBasedCellCycleModel(const AbstractWntOdeBasedCellCycleModel& rModel);
 
 public:
 

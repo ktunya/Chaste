@@ -37,6 +37,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define TESTNUMERICS_HPP_
 
 #include <cxxtest/TestSuite.h>
+#include <ctime>
 
 //Misc
 #include "CellBasedEventHandler.hpp"
@@ -312,7 +313,9 @@ public:
         	    	AddForce<3>(simulation, population, interactionCutoff);
         	    	AddTracking<3>(simulation, (int)pow(2,power));
 
+                    std::time_t start = std::time(NULL);
         	    	simulation->Solve();
+                    std::cout << "sec: " << std::time(NULL)-start << std::endl;
 
         	    	CleanupNodes(nodes);
         	    	delete simulation;

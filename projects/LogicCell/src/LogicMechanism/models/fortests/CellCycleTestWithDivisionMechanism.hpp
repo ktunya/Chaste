@@ -39,16 +39,20 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AbstractCellLogic.hpp"
 #include "LogicCell.hpp"
 
+/**
+* A simple cell cycle model with a fixed, equal length for each phase. 
+* Intended primarily for testing.
+*/
 class CellCycleTestWithDivisionMechanism : public AbstractCellLogic{
 
 private:
 
-    double timeInPhase;
+    double phaseStartTime;
     double phaseDuration;
 
 public:
 
-    CellCycleTestWithDivisionMechanism(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration);
+    CellCycleTestWithDivisionMechanism(LogicCell* inputCell, int initialState, double startingTime, double phaseDuration);
 
     void Update();
 

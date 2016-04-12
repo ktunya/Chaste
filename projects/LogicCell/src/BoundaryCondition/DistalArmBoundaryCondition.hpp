@@ -42,8 +42,9 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <boost/serialization/vector.hpp>
 
 /**
-* A boundary condition that confines germ cells to the distal arm of the adult C. elegans germ line.
-* On reaching the turn, cells are removed.
+* A boundary condition that confines cells to lie on the surface of a cylinder oriented 
+* along the x axis, with a hemispherical endcap. Used to model the distal region of the adult 
+* C. elegans gonad.
 */
 
 template<unsigned DIM>
@@ -65,9 +66,9 @@ private:
 		archive & boost::serialization::base_object<AbstractCellPopulationBoundaryCondition<DIM> >(*this);
 	}
 
-	//Maximum distance that cells can be from the distal arm midline
+	// Max distance that cells can be from the distal arm midline
 	double TubeRadius;
-	//Length of the tube
+	// Length of the tube
 	double TubeLength;
 
 public:

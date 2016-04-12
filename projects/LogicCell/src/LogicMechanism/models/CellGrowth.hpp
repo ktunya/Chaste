@@ -50,11 +50,11 @@ class CellGrowth : public AbstractCellLogic {
 
       CellGrowth(LogicCell* inputCell, int initialState, double initialRadius, double growthRate, double maxRadius);
 
-      void update();
+      void Update();
 
-      AbstractCellLogic* divide(LogicCell* daughterCell);
+      AbstractCellLogic* Divide(LogicCell* daughterCell);
 
-      void dumpState();
+      virtual void DumpState();
 
 };
 

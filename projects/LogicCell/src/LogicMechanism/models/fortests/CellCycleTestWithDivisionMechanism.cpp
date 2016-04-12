@@ -35,28 +35,43 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "CellCycleTestWithDivisionMechanism.hpp"
 #include "CellActions.hpp"
+#include "Warnings.hpp"
 
-CellCycleTestWithDivisionMechanism::CellCycleTestWithDivisionMechanism(LogicCell* inputCell, int initialState, double initialTimeInPhase, double phaseDuration):
-        AbstractCellLogic(inputCell, initialState),
-        timeInPhase(initialTimeInPhase),
-        phaseDuration(phaseDuration){
+CellCycleTestWithDivisionMechanism::CellCycleTestWithDivisionMechanism(LogicCell* inputCell, int initialState, double startingTime, double phaseDuration):
+  AbstractCellLogic(inputCell, initialState),
+  phaseStartTime(startingTime),
+  phaseDuration(phaseDuration)
+{
 }
 
 
 void CellCycleTestWithDivisionMechanism::Update(){
-
-    timeInPhase ++;
     
     int oldState = state;
 
+    double timeInPhase;
+    if(SimulationTime::Instance()->IsStartTimeSetUp()){
+      timeInPhase = SimulationTime::Instance()->GetTime()-phaseStartTime;
+    }else{
+      // We're running inside a test where cells are updated manually rather than
+      // via a simulation object. This allows the cell cycle to work without a 
+      // SimulationTime being available.
+      phaseStartTime--;
+      timeInPhase = -phaseStartTime;
+    }
+
     if (timeInPhase >= phaseDuration) {
-       timeInPhase = 0.0;
+       if(SimulationTime::Instance()->IsStartTimeSetUp()){
+          phaseStartTime = SimulationTime::Instance()->GetTime();
+       }else{
+          phaseStartTime = 0.0;
+       }
        state++;
        state = state % 4;
     }
 
     if (state == CellCycle::M && oldState == CellCycle::G2) {
-       owningCell->SetPendingAction(CellActions::CallForDivision);
+      owningCell->SetPendingAction(CellActions::CallForDivision);
     }
 
     DumpState();
@@ -64,10 +79,21 @@ void CellCycleTestWithDivisionMechanism::Update(){
 
 AbstractCellLogic* CellCycleTestWithDivisionMechanism::Divide(LogicCell* daughterCell){
 
-   AbstractCellLogic* daughterLogic =  new CellCycleTestWithDivisionMechanism(daughterCell, state, timeInPhase, phaseDuration);
+    AbstractCellLogic* daughterLogic;
+    if(SimulationTime::Instance()->IsStartTimeSetUp()){
+      daughterLogic =  new CellCycleTestWithDivisionMechanism(daughterCell, 
+                                                              state, 
+                                                              SimulationTime::Instance()->GetTime(),
+                                                              phaseDuration);
+    }else{
+      daughterLogic =  new CellCycleTestWithDivisionMechanism(daughterCell, 
+                                                              state, 
+                                                              0,
+                                                              phaseDuration);
+    }
 
-   DumpState();
-   daughterLogic->DumpState();
+    DumpState();
+    daughterLogic->DumpState();
 
-   return daughterLogic;
+    return daughterLogic;
 }

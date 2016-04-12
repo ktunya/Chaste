@@ -66,7 +66,7 @@ void PositionSignal<ELEMENT_DIM, SPACE_DIM>::UpdateAtEndOfTimeStep(AbstractCellP
     EXCEPTION("PositionSignal exception");
   }
 
-  for(typename AbstractCellPopulation<ELEMENT_DIM, SPACE_DIM>::RealCellsIterator it = rCellPopulation.Begin();
+  for(typename AbstractCellPopulation<ELEMENT_DIM, SPACE_DIM>::Iterator it = rCellPopulation.Begin();
       it!=rCellPopulation.End(); ++it){
 
       c_vector<double, SPACE_DIM> position = rCellPopulation.GetLocationOfCellCentre(*it);
@@ -83,9 +83,11 @@ void PositionSignal<ELEMENT_DIM, SPACE_DIM>::UpdateAtEndOfTimeStep(AbstractCellP
       }
 
       it->GetCellData()->SetItem("PositionSignal", signalStrength);
-      dynamic_cast<LogicCell*>((*it).get())->template sendEnvironmentalSignal<MyPositionSignal>(signalStrength);
+      dynamic_cast<LogicCell*>((*it).get())->
+          template SendEnvironmentalSignal<DifferentiationDistanceSignal>(signalStrength);
   }
 }
+
 
 
 template<unsigned  ELEMENT_DIM, unsigned SPACE_DIM>
@@ -97,7 +99,7 @@ void PositionSignal<ELEMENT_DIM, SPACE_DIM>::SetupSolve(AbstractCellPopulation<E
     EXCEPTION("PositionSignal exception");
   }
 
-  for(typename AbstractCellPopulation<ELEMENT_DIM, SPACE_DIM>::RealCellsIterator it = rCellPopulation.Begin();
+  for(typename AbstractCellPopulation<ELEMENT_DIM, SPACE_DIM>::Iterator it = rCellPopulation.Begin();
       it!=rCellPopulation.End(); ++it){
 
       c_vector<double, SPACE_DIM> position = rCellPopulation.GetLocationOfCellCentre(*it);
@@ -114,7 +116,8 @@ void PositionSignal<ELEMENT_DIM, SPACE_DIM>::SetupSolve(AbstractCellPopulation<E
       }
 
       it->GetCellData()->SetItem("PositionSignal", signalStrength);
-      dynamic_cast<LogicCell*>((*it).get())->template sendEnvironmentalSignal<MyPositionSignal>(signalStrength);
+      dynamic_cast<LogicCell*>((*it).get())->
+          template SendEnvironmentalSignal<DifferentiationDistanceSignal>(signalStrength);
   }
 }
 

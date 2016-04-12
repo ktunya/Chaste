@@ -61,22 +61,19 @@ class PositionSignal: public AbstractCellBasedSimulationModifier<ELEMENT_DIM, SP
 
 public:
 
-   int axis; 
-   double zero;
+  int axis; 
+  double zero;
 
-   PositionSignal();
+  PositionSignal();
 
-   void SetAxisOfInterest(int intAxisChoice);
-   void SetMeasurementStartPoint(double zero);
+  void SetAxisOfInterest(int intAxisChoice);
+  void SetMeasurementStartPoint(double zero);
 
+  void UpdateAtEndOfTimeStep(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation);
 
-   void UpdateAtEndOfTimeStep(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation);
+  void SetupSolve(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation, std::string outputDirectory);
 
-
-   void SetupSolve(AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>& rCellPopulation, std::string outputDirectory);
-
-
-   virtual void OutputSimulationModifierParameters(out_stream& rParamsFile);
+  virtual void OutputSimulationModifierParameters(out_stream& rParamsFile);
 
 };
 

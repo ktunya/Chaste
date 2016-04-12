@@ -34,11 +34,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "CellGrowth.hpp"
-
-#include "stdio.h"
 #include "LogicTypes.hpp"
 #include "LogicCell.hpp"
-
 
 CellGrowth::CellGrowth(LogicCell* inputCell, int initialState, double initialRadius, double growthRate, double maxRadius):
         AbstractCellLogic(inputCell, initialState),
@@ -49,7 +46,7 @@ CellGrowth::CellGrowth(LogicCell* inputCell, int initialState, double initialRad
 }
 
 
-void CellGrowth::update(){
+void CellGrowth::Update(){
 
     if(cellRadius >= maximumRadius) {
         state = Growth::STATIC;
@@ -61,23 +58,29 @@ void CellGrowth::update(){
         cellRadius += radialGrowthPerHour * SimulationTime::Instance()->GetTimeStep();
     }
 
-    dumpState();
+    DumpState();
 }
 
 
-AbstractCellLogic* CellGrowth::divide(LogicCell* daughterCell){
+AbstractCellLogic* CellGrowth::Divide(LogicCell* daughterCell){
 
-    AbstractCellLogic* daughterLogic =  new CellGrowth(daughterCell, Growth::GROWING, cellRadius/pow(2,0.33333333), radialGrowthPerHour, maximumRadius);
+    AbstractCellLogic* daughterLogic =  new CellGrowth(daughterCell, 
+                                                       Growth::GROWING,
+                                                       cellRadius/pow(2,0.33333333), 
+                                                       radialGrowthPerHour, 
+                                                       maximumRadius);
     cellRadius = cellRadius/pow(2,0.33333333);
 
-    dumpState();
+    DumpState();
 
     return daughterLogic;
 }
 
 
-void CellGrowth::dumpState(){
+void CellGrowth::DumpState(){
 
-    owningCell->GetCellData()->SetItem(category, state);
-    owningCell->GetCellData()->SetItem("Radius", cellRadius);
+  //Extra item to output along with the current state
+  owningCell->GetCellData()->SetItem("Radius", cellRadius);
+  
+  AbstractCellLogic::DumpState();
 }

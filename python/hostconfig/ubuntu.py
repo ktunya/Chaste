@@ -148,7 +148,7 @@ if os.path.exists('/usr/lib/liblapack-3.so'):
 else:
     blas_lapack = ['lapack', 'blas']
 
-tools = {'xsd': '/usr/bin/xsdcxx',
+tools = {'xsd': '/usr/local/bin/xsd',
          'mpirun': '/usr/bin/mpirun.openmpi',
          'mpicxx': '/usr/bin/mpic++.openmpi'}
 
